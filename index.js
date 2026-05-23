@@ -10,11 +10,11 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/api/auth',      require('./routes/auth'));
-app.use('/api/payments',  require('./routes/payments'));
-app.use('/api/security',  require('./routes/security'));
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/payments', require('./routes/payments'));
+app.use('/api/security', require('./routes/security'));
 app.use('/api/dashboard', require('./routes/dashboard'));
-app.use('/api/admin',     require('./routes/admin'));
+app.use('/api/admin', require('./routes/admin'));
 
 app.get('/api/health', async (req, res) => {
   const result = { server: 'ok', db: 'unknown' };
@@ -31,8 +31,11 @@ app.get('/api/health', async (req, res) => {
   }
 
   const ok = result.db === 'ok';
-  const status = result.db === 'error' ? 500 : 200;
-  res.status(status).json({ success: ok, data: result });
+  if (ok) {
+    res.status(200).json({ success: true, data: result });
+  } else {
+    res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: '데이터베이스 상태가 비정상입니다.', detail: result } });
+  }
 });
 
 app.listen(PORT, () => {

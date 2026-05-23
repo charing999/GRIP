@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "nodemon index.js",
     "start": "node index.js",
-    "test": "node --test tests/schema/schema.test.js tests/backend/auth.test.js tests/backend/payments.test.js tests/backend/security.test.js tests/frontend/api.test.js",
+    "test": "node --test tests/schema/schema.test.js tests/backend/lib.test.js tests/backend/health.test.js tests/backend/auth.test.js tests/backend/payments.test.js tests/backend/security.test.js tests/backend/dashboard.test.js tests/backend/admin.test.js tests/frontend/api.test.js",
     "test:schema": "node --test tests/schema/schema.test.js",
-    "test:backend": "node --test tests/backend/auth.test.js tests/backend/payments.test.js tests/backend/security.test.js",
+    "test:backend": "node --test tests/backend/lib.test.js tests/backend/health.test.js tests/backend/auth.test.js tests/backend/payments.test.js tests/backend/security.test.js tests/backend/dashboard.test.js tests/backend/admin.test.js",
     "test:frontend": "node --test tests/frontend/api.test.js"
   },
   "dependencies": {
