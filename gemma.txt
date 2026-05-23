@@ -66,8 +66,7 @@ GRIP 프로젝트의 AI 이상 행동 분석(4.6절)은 로컬 LLM으로 동작�
 
 3.3 REST API 확인
 
-  curl http://localhost:11434/api/generate \
-    -d "{\"model\":\"gemma4\",\"prompt\":\"안녕\",\"stream\":false}"
+  curl http://localhost:11434/api/generate -d "{\"model\":\"gemma4\",\"prompt\":\"안녕\",\"stream\":false}"
 
   → {"response":"안녕하세요..."} 형태 응답 확인
 

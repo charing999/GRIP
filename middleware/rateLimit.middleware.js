@@ -1,8 +1,10 @@
-const { redis } = require('../lib/redis');
 const { supabaseAdmin } = require('../lib/supabase');
 
-const WINDOW_SEC = 60;
+const WINDOW_MS = 60 * 1000;
 const MAX_REQUESTS = 10;
+
+// in-memory sliding window: ip -> [timestamp, ...]
+const store = new Map();
 
 async function logBruteForce(ip, count) {
   if (!supabaseAdmin) return;
@@ -14,31 +16,21 @@ async function logBruteForce(ip, count) {
 }
 
 module.exports = async (req, res, next) => {
-  if (!redis) return next();
-
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
-  const key = `ratelimit:${ip}`;
   const now = Date.now();
-  const windowStart = now - WINDOW_SEC * 1000;
+  const windowStart = now - WINDOW_MS;
 
-  try {
-    const pipe = redis.pipeline();
-    pipe.zremrangebyscore(key, '-inf', windowStart);
-    pipe.zadd(key, now, `${now}`);
-    pipe.zcard(key);
-    pipe.expire(key, WINDOW_SEC);
-    const results = await pipe.exec();
+  const timestamps = (store.get(ip) || []).filter(t => t > windowStart);
+  timestamps.push(now);
+  store.set(ip, timestamps);
 
-    const count = results[2][1];
-    if (count > MAX_REQUESTS) {
-      await logBruteForce(ip, count);
-      return res.status(429).json({
-        success: false,
-        error: { code: 'RATE_LIMITED', message: '요청 한도를 초과하였습니다. 잠시 후 다시 시도하세요.' },
-      });
-    }
-  } catch {
-    // Redis 장애 시 통과 허용
+  const count = timestamps.length;
+  if (count > MAX_REQUESTS) {
+    await logBruteForce(ip, count);
+    return res.status(429).json({
+      success: false,
+      error: { code: 'RATE_LIMITED', message: '요청 한도를 초과하였습니다. 잠시 후 다시 시도하세요.' },
+    });
   }
 
   next();

@@ -5,7 +5,7 @@ GRIP — 전통시장 QR 결제 보안 시스템 기술 명세서
 1. 시스템 개요
 ================================================================================
 
-시스템 명칭: GRIP (Guard-Reinforced Integrity Payment)
+시스템 명칭: GRIP
 목적: 전통시장 상인-소비자 간 QR 결제 흐름에서 QR 위변조·계정 탈취·
       SQL 인젝션·거래 데이터 변조·위치 불일치를 탐지·차단하는 보안 데모 시스템
 행사: SOGRA 해커톤
@@ -25,78 +25,195 @@ admin     관리자 보안 이벤트 대시보드를 열람하는 주체
 ================================================================================
 
 3.1 users
-─────────────────────────────────────────────────────
-컬럼                  타입                 제약
-id                    UUID                 PK, DEFAULT gen_random_uuid()
-role                  TEXT                 NOT NULL, CHECK IN ('merchant','consumer','admin')
-email                 TEXT                 UNIQUE NOT NULL
-password_hash         TEXT                 NOT NULL
-balance               INTEGER              NOT NULL DEFAULT 0, CHECK >= 0  [단위: 원]
-failed_login_count    INTEGER              NOT NULL DEFAULT 0
-locked_until          TIMESTAMPTZ          NULL  [잠금 만료 시각. NULL = 잠금 없음]
-is_blocked            BOOLEAN              NOT NULL DEFAULT FALSE  [AI 권고 차단 여부]
-block_reason          TEXT                 NULL  [AI가 생성한 한국어 차단 사유]
-blocked_at            TIMESTAMPTZ          NULL  [차단 시각]
-created_at            TIMESTAMPTZ          NOT NULL DEFAULT now()
 
-3.2 payment_requests  (동적 QR 발급 단위)
-─────────────────────────────────────────────────────
-컬럼                  타입                 제약
-id                    UUID                 PK, DEFAULT gen_random_uuid()
-merchant_id           UUID                 FK → users(id) NOT NULL
-amount                INTEGER              NOT NULL, CHECK > 0  [단위: 원]
-nonce                 TEXT                 UNIQUE NOT NULL  [UUID v4, 1회용]
-hmac_signature        TEXT                 NOT NULL
-merchant_lat          DOUBLE PRECISION     NOT NULL  [상인 발급 시점 위도]
-merchant_lng          DOUBLE PRECISION     NOT NULL  [상인 발급 시점 경도]
-expires_at            TIMESTAMPTZ          NOT NULL  [= 생성 시각 + 60초]
-status                TEXT                 NOT NULL DEFAULT 'pending'
-                                           CHECK IN ('pending','completed','expired','rejected')
-created_at            TIMESTAMPTZ          NOT NULL DEFAULT now()
+create table public.users (
+  id uuid not null default gen_random_uuid (),
+  role text not null,
+  email text not null,
+  password_hash text not null,
+  balance integer not null default 0,
+  failed_login_count integer not null default 0,
+  locked_until timestamp with time zone null,
+  is_blocked boolean not null default false,
+  block_reason text null,
+  blocked_at timestamp with time zone null,
+  created_at timestamp with time zone not null default now(),
+  constraint users_pkey primary key (id),
+  constraint users_email_key unique (email),
+  constraint users_balance_check check ((balance >= 0)),
+  constraint users_role_check check (
+    (
+      role = any (
+        array['merchant'::text, 'consumer'::text, 'admin'::text]
+      )
+    )
+  )
+) TABLESPACE pg_default;
 
-  인덱스: (merchant_id, status) — 상인별 pending QR 조회용
+create index IF not exists idx_users_email on public.users using btree (email) TABLESPACE pg_default;
 
-  위치 좌표 범위 제약:
-    merchant_lat: CHECK BETWEEN -90 AND 90
-    merchant_lng: CHECK BETWEEN -180 AND 180
+create index IF not exists idx_users_role on public.users using btree (role) TABLESPACE pg_default;
 
-3.3 transactions  (결제 완료 기록 — 해시 체인)
-─────────────────────────────────────────────────────
-컬럼                  타입                 제약
-id                    BIGSERIAL            PK  [순번. 체인 순서 결정]
-payment_request_id    UUID                 FK → payment_requests(id) NOT NULL
-consumer_id           UUID                 FK → users(id) NOT NULL
-merchant_id           UUID                 FK → users(id) NOT NULL
-amount                INTEGER              NOT NULL
-prev_hash             TEXT                 NOT NULL
-current_hash          TEXT                 NOT NULL
-created_at            TIMESTAMPTZ          NOT NULL DEFAULT now()
+create trigger trg_signup_bonus BEFORE INSERT on users for EACH row
+execute FUNCTION grant_signup_bonus ();
 
-  tx_data 정의 (해시 입력):
-    {id}{payment_request_id}{consumer_id}{merchant_id}{amount}{created_at}
-    ※ 모든 필드를 문자열로 연결. created_at은 ISO 8601 UTC.
+3.2 merchants
 
-  첫 번째 거래: prev_hash = SHA256('GENESIS')
-  n번째 거래:   prev_hash = 직전 거래(id = n-1)의 current_hash
-  current_hash = SHA256(prev_hash || tx_data)
+create table public.merchants (
+  user_id uuid not null,
+  market_name text not null,
+  store_name text not null,
+  category text null,
+  lat double precision not null,
+  lng double precision not null,
+  secret_key text not null,
+  phone text null,
+  created_at timestamp with time zone not null default now(),
+  constraint merchants_pkey primary key (user_id),
+  constraint merchants_user_id_fkey foreign KEY (user_id) references users (id) on delete CASCADE,
+  constraint merchants_lat_check check (
+    (
+      (lat >= ('-90'::integer)::double precision)
+      and (lat <= (90)::double precision)
+    )
+  ),
+  constraint merchants_lng_check check (
+    (
+      (lng >= ('-180'::integer)::double precision)
+      and (lng <= (180)::double precision)
+    )
+  )
+) TABLESPACE pg_default;
 
+create index IF not exists idx_merchants_market on public.merchants using btree (market_name) TABLESPACE pg_default;
+
+create index IF not exists idx_merchants_category on public.merchants using btree (category) TABLESPACE pg_default;
+
+create index IF not exists idx_merchants_location on public.merchants using btree (lat, lng) TABLESPACE pg_default;
+
+3.3 transactions  
+
+create table public.transactions (
+  id bigserial not null,
+  payment_request_id uuid not null,
+  consumer_id uuid not null,
+  merchant_id uuid not null,
+  amount integer not null,
+  prev_hash text not null,
+  current_hash text not null,
+  created_at timestamp with time zone not null default now(),
+  constraint transactions_pkey primary key (id),
+  constraint transactions_consumer_id_fkey foreign KEY (consumer_id) references users (id),
+  constraint transactions_merchant_id_fkey foreign KEY (merchant_id) references users (id)
+) TABLESPACE pg_default;
+
+create index IF not exists idx_tx_merchant on public.transactions using btree (merchant_id, created_at desc) TABLESPACE pg_default;
+
+create index IF not exists idx_tx_consumer on public.transactions using btree (consumer_id, created_at desc) TABLESPACE pg_default;
 3.4 security_events
-─────────────────────────────────────────────────────
-컬럼                  타입                 제약
-id                    BIGSERIAL            PK
-event_type            TEXT                 NOT NULL
-                                           CHECK IN ('SQLI_BLOCKED','BRUTE_FORCE',
-                                                     'INVALID_QR','REPLAY_QR',
-                                                     'LOCATION_MISMATCH',
-                                                     'CHAIN_BROKEN','PAYMENT_OK',
-                                                     'AI_ALERT')
-ip                    TEXT                 NULL
-user_id               UUID                 FK → users(id) NULL
-detail                JSONB                NULL  [이벤트별 부가 정보]
-created_at            TIMESTAMPTZ          NOT NULL DEFAULT now()
 
-  인덱스: (event_type, created_at DESC) — 대시보드 집계용
-  인덱스: (created_at DESC) — 실시간 피드용
+create table public.security_events (
+  id bigserial not null,
+  event_type text not null,
+  ip text null,
+  user_id uuid null,
+  detail jsonb null,
+  created_at timestamp with time zone not null default now(),
+  constraint security_events_pkey primary key (id),
+  constraint security_events_user_id_fkey foreign KEY (user_id) references users (id),
+  constraint security_events_event_type_check check (
+    (
+      event_type = any (
+        array[
+          'SQLI_BLOCKED'::text,
+          'BRUTE_FORCE'::text,
+          'INVALID_QR'::text,
+          'REPLAY_QR'::text,
+          'LOCATION_MISMATCH'::text,
+          'CHAIN_BROKEN'::text,
+          'PAYMENT_OK'::text,
+          'AI_ALERT'::text,
+          'QR_REVOKED_USED'::text,
+          'QR_EXPIRED_USED'::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
+
+create index IF not exists idx_events_type_time on public.security_events using btree (event_type, created_at desc) TABLESPACE pg_default;
+
+create index IF not exists idx_events_time on public.security_events using btree (created_at desc) TABLESPACE pg_default;
+
+3.5 merchant_qr_codes
+
+create table public.merchant_qr_codes (
+  qr_id uuid not null default gen_random_uuid (),
+  merchant_id uuid not null,
+  merchant_lat double precision not null,
+  merchant_lng double precision not null,
+  hmac_signature text not null,
+  issued_at timestamp with time zone not null default now(),
+  expires_at timestamp with time zone not null,
+  status text not null default 'active'::text,
+  revoked_at timestamp with time zone null,
+  revoked_reason text null,
+  print_batch_id text null,
+  created_at timestamp with time zone not null default now(),
+  constraint merchant_qr_codes_pkey primary key (qr_id),
+  constraint merchant_qr_codes_merchant_id_fkey foreign KEY (merchant_id) references users (id),
+  constraint merchant_qr_codes_status_check check (
+    (
+      status = any (
+        array['active'::text, 'revoked'::text, 'expired'::text]
+      )
+    )
+  )
+) TABLESPACE pg_default;
+
+create index IF not exists idx_qr_merchant_status on public.merchant_qr_codes using btree (merchant_id, status) TABLESPACE pg_default;
+
+create index IF not exists idx_qr_batch on public.merchant_qr_codes using btree (print_batch_id) TABLESPACE pg_default;
+
+3.6 payment_sessions
+
+create table public.payment_sessions (
+  session_id uuid not null default gen_random_uuid (),
+  qr_id uuid not null,
+  merchant_id uuid not null,
+  consumer_id uuid not null,
+  amount integer not null,
+  nonce text not null,
+  consumer_lat double precision not null,
+  consumer_lng double precision not null,
+  distance_m double precision null,
+  status text not null default 'pending'::text,
+  expires_at timestamp with time zone not null,
+  created_at timestamp with time zone not null default now(),
+  constraint payment_sessions_pkey primary key (session_id),
+  constraint payment_sessions_nonce_key unique (nonce),
+  constraint payment_sessions_merchant_id_fkey foreign KEY (merchant_id) references users (id),
+  constraint payment_sessions_consumer_id_fkey foreign KEY (consumer_id) references users (id),
+  constraint payment_sessions_qr_id_fkey foreign KEY (qr_id) references merchant_qr_codes (qr_id),
+  constraint payment_sessions_amount_check check ((amount > 0)),
+  constraint payment_sessions_status_check check (
+    (
+      status = any (
+        array[
+          'pending'::text,
+          'completed'::text,
+          'rejected'::text,
+          'expired'::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
+
+create index IF not exists idx_session_qr on public.payment_sessions using btree (qr_id, status) TABLESPACE pg_default;
+
+create index IF not exists idx_session_consumer on public.payment_sessions using btree (consumer_id, created_at desc) TABLESPACE pg_default;
+
 
 ================================================================================
 4. 보안 메커니즘
@@ -107,10 +224,10 @@ created_at            TIMESTAMPTZ          NOT NULL DEFAULT now()
 서명 알고리즘: HMAC-SHA256
 
 서명 입력(message):
-  {payment_id}:{merchant_id}:{amount}:{nonce}:{expires_at}:{merchant_lat_r4}:{merchant_lng_r4}
-  ※ expires_at은 Unix timestamp (정수, 초 단위)
+  {payment_id}:{merchant_id}:{amount}:{nonce}:{merchant_lat_r4}:{merchant_lng_r4}
   ※ merchant_lat_r4, merchant_lng_r4: 소수점 4자리 고정 문자열 (예: "36.3504", "127.3845")
      → toFixed(4) 적용. float 직렬화 불일치 방지 목적.
+  ※ 시간 기반 만료를 사용하지 않으므로 expires_at은 서명 입력에 포함하지 않는다.
 
 서명 키: 환경변수 HMAC_SECRET (256비트 이상 랜덤 문자열)
 
@@ -122,23 +239,23 @@ QR 발급 흐름:
      (navigator.geolocation.getCurrentPosition — 동의 거부 시 QR 발급 불가)
   2. 상인 → POST /api/payments/request (amount, merchant_lat, merchant_lng)
   3. 서버: 동일 merchant_id의 status='pending' 행을 'expired'로 일괄 업데이트
-  4. 서버: payment_request 행 생성 (nonce = UUID v4, expires_at = now()+60s,
-           merchant_lat, merchant_lng 저장)
+     (이전 QR을 모두 무효화 — 상인이 직접 갱신할 때만 만료됨)
+  4. 서버: payment_request 행 생성 (nonce = UUID v4, merchant_lat, merchant_lng 저장)
   5. 서버: HMAC 계산 후 저장 (위치 포함)
-  6. 응답: { payment_id, hmac_signature, expires_at, qr_payload }
+  6. 응답: { payment_id, hmac_signature, qr_payload }
 
 QR 검증 흐름 (POST /api/payments/verify):
   1. 소비자 → 브라우저 Geolocation API로 위치 동의 및 좌표 획득
      (동의 거부 시 결제 불가)
   2. 소비자 → { qr_payload, consumer_lat, consumer_lng } 전송
   3. payment_id로 payment_request 조회 — 없으면 INVALID_QR
-  4. status = 'pending' 확인 — 아니면 REPLAY_QR (completed) 또는 INVALID_QR
-  5. expires_at > now() 확인 — 초과 시 'expired' 처리 후 INVALID_QR
-  6. HMAC 재계산 후 hmac_signature 비교 — 불일치 시 INVALID_QR
-  7. Haversine 거리 계산 (상인 위치 vs 소비자 위치)
+  4. status = 'pending' 확인 — 아니면 REPLAY_QR (completed) 또는 INVALID_QR (expired)
+     ※ 시간 기반 만료 검사 없음. status가 'pending'이면 유효한 QR로 간주.
+  5. HMAC 재계산 후 hmac_signature 비교 — 불일치 시 INVALID_QR
+  6. Haversine 거리 계산 (상인 위치 vs 소비자 위치)
      거리 > MAX_DISTANCE_METERS → LOCATION_MISMATCH 이벤트 + 400 반환
-  8. 소비자 balance >= amount 확인 — 부족 시 400
-  9. 트랜잭션:
+  7. 소비자 balance >= amount 확인 — 부족 시 400
+  8. 트랜잭션:
        consumer.balance -= amount
        merchant.balance += amount
        payment_request.status = 'completed'
@@ -162,9 +279,9 @@ QR 검증 흐름 (POST /api/payments/verify):
 
 4.3 Brute Force 방어
 ─────────────────────────────────────────────────────
-Rate Limit (Redis):
-  키: ratelimit:{ip}   자료구조: Sorted Set   TTL: 60초
-  임계치: 분당 10회 초과 시 429 반환 + BRUTE_FORCE 이벤트
+Rate Limit (in-memory 슬라이딩 윈도우):
+  구현: 프로세스 내 Map (ip → 타임스탬프 배열)
+  윈도우: 60초   임계치: 분당 10회 초과 시 429 반환 + BRUTE_FORCE 이벤트
 
 계정 잠금:
   조건: 동일 email 로그인 5회 연속 실패
@@ -467,9 +584,10 @@ Content-Type: text/event-stream
   시나리오 B (Replay 공격):
     공격: 정상 QR을 결제 후 재스캔
     기대: 400 REPLAY_QR + REPLAY_QR 이벤트
-  시나리오 C (만료된 QR):
-    공격: 발급 60초 후 스캔
-    기대: 400 INVALID_QR (expired)
+  시나리오 C (상인 갱신으로 무효화된 QR):
+    공격: 상인이 새 QR을 발급한 뒤 이전 QR 스캔 시도
+    기대: 400 INVALID_QR (status='expired') + INVALID_QR 이벤트
+    ※ 시간 만료 대신 상인의 명시적 갱신으로 이전 QR이 무효화됨
 
 9.4 위치 불일치 (Location Mismatch)
   준비: 상인 A가 대전 시장에서 QR 발급 (정상 위치)
@@ -518,9 +636,6 @@ SUPABASE_SERVICE_ROLE_KEY=<service role key>   # 서버 전용. 클라이언트 
 HMAC_SECRET=<256비트 이상 랜덤 문자열>         # QR 서명 키
 MAX_DISTANCE_METERS=100                         # 위치 검증 허용 반경 (미터, 기본 100)
 
-# Redis (Rate Limiting)
-REDIS_URL=redis://localhost:6379
-
 # 로컬 AI (Ollama)
 OLLAMA_URL=http://localhost:11434               # Ollama 서버 주소 (Docker: http://ollama:11434)
 OLLAMA_MODEL=gemma4                            # 기본: gemma4 (4B). 저사양 시 gemma4:2b
@@ -548,11 +663,10 @@ GRIP/
 │   └── dashboard.controller.js
 ├── middleware/
 │   ├── auth.middleware.js          # JWT 검증 + req.user 주입
-│   ├── rateLimit.middleware.js     # Redis 기반 IP rate limit
+│   ├── rateLimit.middleware.js     # in-memory 슬라이딩 윈도우 IP rate limit
 │   └── sqliDetect.middleware.js    # SQL 메타 문자 탐지
 ├── lib/
 │   ├── supabase.js                 # Supabase 클라이언트 싱글톤
-│   ├── redis.js                    # Redis 클라이언트 싱글톤
 │   ├── hmac.js                     # HMAC-SHA256 서명/검증
 │   ├── hashChain.js                # SHA256 체인 계산
 │   ├── haversine.js                # Haversine 거리 계산 (미터 반환)
@@ -596,7 +710,6 @@ GRIP/
 서버:
   express             HTTP 서버
   @supabase/supabase-js  Supabase 클라이언트
-  ioredis             Redis 클라이언트
   crypto (Node 내장)  SHA256 / HMAC
   fetch (Node 내장)   Ollama REST API 호출 (npm 패키지 불필요)
 

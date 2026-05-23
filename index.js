@@ -2,7 +2,6 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 const { supabase } = require('./lib/supabase');
-const { redis } = require('./lib/redis');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,7 +16,7 @@ app.use('/api/security',  require('./routes/security'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 
 app.get('/api/health', async (req, res) => {
-  const result = { server: 'ok', db: 'unknown', redis: 'unknown' };
+  const result = { server: 'ok', db: 'unknown' };
 
   // Supabase 연결 확인 — SDK의 getSession()으로 API 키 유효성 검증
   if (!supabase) {
@@ -29,18 +28,6 @@ app.get('/api/health', async (req, res) => {
     } catch {
       result.db = 'error';
     }
-  }
-
-  // Redis 연결 확인
-  if (redis) {
-    try {
-      await redis.ping();
-      result.redis = 'ok';
-    } catch {
-      result.redis = 'error';
-    }
-  } else {
-    result.redis = 'not_configured';
   }
 
   const ok = result.db === 'ok';

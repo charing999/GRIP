@@ -2,7 +2,7 @@
 
 **GRIP** — 전통시장 QR 결제 보안 시스템 (QR 위변조·SQL Injection·Brute Force·해시 체인 위변조 탐지/차단 데모)
 
-**Stack:** Node.js (Express) + Supabase (PostgreSQL + Auth) + Vanilla JS + Redis  
+**Stack:** Node.js (Express) + Supabase (PostgreSQL + Auth) + Vanilla JS  
 **Event:** SOGRA 해커톤  
 **Spec:** `../spec.txt` 참고 (상세 명세 원본)
 
@@ -11,7 +11,7 @@
 ## Current Phase
 
 ```
-PHASE=0_SETUP
+PHASE=1_SCHEMA
 ```
 
 > 페이즈 변경 시 위 값만 수정한다.  
@@ -287,11 +287,10 @@ GRIP/
 │   └── dashboard.controller.js
 ├── middleware/
 │   ├── auth.middleware.js        # JWT 검증 + req.user 주입
-│   ├── rateLimit.middleware.js   # Redis 기반 IP rate limit
+│   ├── rateLimit.middleware.js   # in-memory 슬라이딩 윈도우 IP rate limit
 │   └── sqliDetect.middleware.js  # SQL 메타 문자 탐지
 ├── lib/
 │   ├── supabase.js               # Supabase 클라이언트 싱글톤
-│   ├── redis.js                  # Redis 클라이언트 싱글톤
 │   ├── hmac.js                   # HMAC-SHA256 서명/검증
 │   ├── hashChain.js              # SHA256 체인 계산
 │   ├── haversine.js              # Haversine 거리 계산 (미터 반환)
@@ -327,7 +326,7 @@ GRIP/
 
 - Node.js + Express
 - Supabase (PostgreSQL + Auth). Storage 미사용.
-- Redis (ioredis): IP rate limiting 전용
+- IP rate limiting: in-memory 슬라이딩 윈도우 (외부 의존성 없음)
 - 프론트엔드: Vanilla JS (프레임워크 없음)
 - CSS: 외부 라이브러리 없음
 - 차트: Chart.js (CDN)
@@ -380,7 +379,6 @@ SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=   # 서버 전용 — 클라이언트 노출 금지
 HMAC_SECRET=                 # QR 서명 키 (256비트 이상 랜덤)
 MAX_DISTANCE_METERS=100      # 위치 검증 허용 반경 (미터)
-REDIS_URL=redis://localhost:6379
 OLLAMA_URL=http://localhost:11434   # Docker 배포 시 http://ollama:11434
 OLLAMA_MODEL=gemma4                # 기본: gemma4 (4B). 저사양 시 gemma4:2b
 AI_ANALYSIS_INTERVAL_MINUTES=5
@@ -408,10 +406,10 @@ npm run test:frontend   # 프론트엔드 테스트
 ## Core Features
 
 1. **동적 서명 QR 결제** — 상인 GPS 위치 포함 HMAC-SHA256 서명 QR 발급 → 소비자 스캔 → 서버 검증 후 포인트 이체
-2. **QR 위변조 탐지** — 서명 불일치(INVALID_QR) + nonce 재사용(REPLAY_QR) + 60초 만료 차단
+2. **QR 위변조 탐지** — 서명 불일치(INVALID_QR) + nonce 재사용(REPLAY_QR) + 상인 갱신 시 이전 QR 일괄 만료
 3. **위치 기반 결제 검증** — 상인·소비자 Geolocation 동의 → Haversine 거리 계산 → 100m 초과 시 LOCATION_MISMATCH 차단
 4. **SQL Injection 방어** — 로그인 요청의 SQL 메타 문자 탐지 (SQLI_BLOCKED 이벤트)
-5. **Brute Force 방어** — Redis rate limit (IP당 분당 10회) + 5회 실패 시 30분 계정 잠금
+5. **Brute Force 방어** — in-memory rate limit (IP당 분당 10회) + 5회 실패 시 30분 계정 잠금
 6. **거래 해시 체인** — SHA256 체인으로 거래 기록 무결성 보장, 검증 API로 변조 탐지
 7. **AI 이상 행동 탐지** — Ollama 로컬 LLM이 트랜잭션/이벤트 기록 분석 → 관리자에게 차단 권고 + 자연어 차단 사유 생성
 8. **보안 이벤트 대시보드** — 실시간 이벤트 피드(SSE) + AI 차단 권고 패널 + Chart.js 막대 차트
