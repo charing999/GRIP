@@ -157,12 +157,18 @@ async function verifyQR(req, res) {
     return fail(res, 400, 'INSUFFICIENT_BALANCE', '잔액이 부족합니다.');
 
   // 결제 처리: 소비자 차감 → 상인 적립 → QR 소비 처리 → 거래 기록
-  const { error: deductErr } = await supabaseAdmin
+  // Optimistic Locking: .eq('balance', consumer.balance)로 읽은 시점의 잔액이
+  // 동시 요청에 의해 변경되지 않았을 때만 UPDATE가 적용된다 (Double Spending 방어).
+  const { data: deducted, error: deductErr } = await supabaseAdmin
     .from('users')
     .update({ balance: consumer.balance - amt })
-    .eq('id', consumerId);
+    .eq('id', consumerId)
+    .eq('balance', consumer.balance)
+    .select('id');
 
   if (deductErr) return fail(res, 500, 'SERVER_ERROR', '결제 처리에 실패하였습니다.');
+  if (!deducted || deducted.length === 0)
+    return fail(res, 409, 'CONFLICT', '동시 결제 요청이 감지되었습니다. 다시 시도해 주세요.');
 
   const { data: merchant } = await supabaseAdmin
     .from('users')
@@ -170,10 +176,12 @@ async function verifyQR(req, res) {
     .eq('id', qr.merchant_id)
     .single();
 
+  const merchantBalance = merchant?.balance || 0;
   await supabaseAdmin
     .from('users')
-    .update({ balance: (merchant?.balance || 0) + amt })
-    .eq('id', qr.merchant_id);
+    .update({ balance: merchantBalance + amt })
+    .eq('id', qr.merchant_id)
+    .eq('balance', merchantBalance);
 
   await supabaseAdmin
     .from('merchant_qr_codes')

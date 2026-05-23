@@ -135,7 +135,7 @@ D. 관리자(admin) 플로우
           (데이터 없으면 빈 차트 표시, 에러 아님)
         - 10초 후 차트 자동 갱신 확인 (Network 탭에서 /api/dashboard/stats 요청 반복 확인)
 
-[ ] D-4. 실시간 이벤트 피드 (SSE)
+[x] D-4. 실시간 이벤트 피드 (SSE)
         - Network 탭 → EventStream 또는 /api/security/stream 연결 확인
         - 별도 창에서 consumer 계정으로 로그인 실패를 3회 시도
         - 대시보드 피드에 LOGIN_FAIL 이벤트 자동 추가 확인
