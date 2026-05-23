@@ -99,8 +99,6 @@ create table public.transactions (
   consumer_id uuid not null,
   merchant_id uuid not null,
   amount integer not null,
-  prev_hash text not null,
-  current_hash text not null,
   created_at timestamp with time zone not null default now(),
   constraint transactions_pkey primary key (id),
   constraint transactions_consumer_id_fkey foreign KEY (consumer_id) references users (id),
@@ -259,7 +257,7 @@ QR 검증 흐름 (POST /api/payments/verify):
        consumer.balance -= amount
        merchant.balance += amount
        payment_request.status = 'completed'
-       transactions 행 삽입 (해시 체인 연결)
+       transactions 행 삽입
        security_events 삽입 (PAYMENT_OK)
 
   거부 시 공통 처리: security_events 삽입 + HTTP 400 반환
@@ -295,21 +293,7 @@ Rate Limit (in-memory 슬라이딩 윈도우):
   3. email/password 검증 → 실패 시 failed_login_count++ + 401
   4. 5회 도달 시 locked_until 설정
 
-4.4 거래 데이터 무결성 (해시 체인)
-─────────────────────────────────────────────────────
-검증 API: GET /api/security/chain-verify (admin 전용)
-
-검증 절차:
-  1. transactions를 id ASC 전체 조회
-  2. 첫 행: expected_prev = SHA256('GENESIS')
-  3. 각 행:
-       expected_current = SHA256(expected_prev || tx_data)
-       actual_current   = row.current_hash
-       불일치 시 → "X번째 거래에서 체인 깨짐" 반환
-               + security_events 삽입 (CHAIN_BROKEN, detail.transaction_id)
-  4. 전체 일치 시 → { valid: true, count: N }
-
-4.5 위치 기반 결제 검증
+4.4 위치 기반 결제 검증
 ─────────────────────────────────────────────────────
 목적: QR을 물리적으로 해당 매장에서만 사용할 수 있도록 강제.
       원격지에서 QR 페이로드를 탈취·재전송하는 공격을 차단.
@@ -446,7 +430,6 @@ GET     /api/payments/history         필요    없음         본인 거래 내
 
 GET     /api/security/events          필요    admin        이벤트 피드
                                                            ?limit=50&before=<id>
-GET     /api/security/chain-verify    필요    admin        해시 체인 검증
 POST    /api/security/ai-analyze      필요    admin        AI 분석 즉시 실행
                                                            body: { user_id? }  [생략 시 전체 대상 분석]
 
@@ -489,7 +472,6 @@ HTTP 상태코드:
   LOCATION_MISMATCH     소비자 위치가 상점 위치와 허용 반경 초과
   LOCATION_REQUIRED     위치 정보 미전송 (lat/lng 누락)
   INSUFFICIENT_BALANCE  잔액 부족
-  CHAIN_INVALID         해시 체인 불일치
   UNAUTHORIZED          인증 토큰 없음 또는 무효
   FORBIDDEN             역할 권한 없음
   USER_BLOCKED          AI 권고로 관리자가 차단한 계정 (message = AI 생성 자연어 사유)
@@ -612,14 +594,6 @@ Content-Type: text/event-stream
     - 관리자가 "차단" 클릭 → POST /api/admin/users/:id/block
     - 해당 소비자가 다시 결제 시도 → 403 USER_BLOCKED + AI 생성 한국어 메시지 반환
 
-9.6 해시 체인 변조
-  준비: Supabase 대시보드 열기
-  공격: transactions 테이블에서 임의 행 amount 직접 UPDATE (예: 5000 → 50000)
-  기대:
-    - GET /api/security/chain-verify 호출
-    - "X번째 거래에서 체인 깨짐" 응답
-    - security_events에 CHAIN_BROKEN 기록
-
 ================================================================================
 10. 환경 변수 (.env)
 ================================================================================
@@ -668,7 +642,6 @@ GRIP/
 ├── lib/
 │   ├── supabase.js                 # Supabase 클라이언트 싱글톤
 │   ├── hmac.js                     # HMAC-SHA256 서명/검증
-│   ├── hashChain.js                # SHA256 체인 계산
 │   ├── haversine.js                # Haversine 거리 계산 (미터 반환)
 │   └── localAI.js                  # Ollama fetch 래퍼 (ask(prompt) → string)
 ├── services/

@@ -1,6 +1,6 @@
 # Project
 
-**GRIP** — 전통시장 QR 결제 보안 시스템 (QR 위변조·SQL Injection·Brute Force·해시 체인 위변조 탐지/차단 데모)
+**GRIP** — 전통시장 QR 결제 보안 시스템 (QR 위변조·SQL Injection·Brute Force 탐지/차단 데모)
 
 **Stack:** Node.js (Express) + Supabase (PostgreSQL + Auth) + Vanilla JS  
 **Event:** SOGRA 해커톤  
@@ -292,7 +292,6 @@ GRIP/
 ├── lib/
 │   ├── supabase.js               # Supabase 클라이언트 싱글톤
 │   ├── hmac.js                   # HMAC-SHA256 서명/검증
-│   ├── hashChain.js              # SHA256 체인 계산
 │   ├── haversine.js              # Haversine 거리 계산 (미터 반환)
 │   └── localAI.js                # Ollama fetch 래퍼
 ├── services/
@@ -363,7 +362,6 @@ HTTP 상태코드: 200 / 201 / 400 / 401 / 403 / 404 / 429 / 500
 - INVALID_QR — QR 서명 불일치 또는 만료
 - REPLAY_QR — 이미 사용된 QR
 - INSUFFICIENT_BALANCE — 잔액 부족
-- CHAIN_INVALID — 해시 체인 불일치
 - UNAUTHORIZED — 인증 토큰 없음/무효
 - FORBIDDEN — 역할 권한 없음
 
@@ -410,9 +408,8 @@ npm run test:frontend   # 프론트엔드 테스트
 3. **위치 기반 결제 검증** — 상인·소비자 Geolocation 동의 → Haversine 거리 계산 → 100m 초과 시 LOCATION_MISMATCH 차단
 4. **SQL Injection 방어** — 로그인 요청의 SQL 메타 문자 탐지 (SQLI_BLOCKED 이벤트)
 5. **Brute Force 방어** — in-memory rate limit (IP당 분당 10회) + 5회 실패 시 30분 계정 잠금
-6. **거래 해시 체인** — SHA256 체인으로 거래 기록 무결성 보장, 검증 API로 변조 탐지
-7. **AI 이상 행동 탐지** — Ollama 로컬 LLM이 트랜잭션/이벤트 기록 분석 → 관리자에게 차단 권고 + 자연어 차단 사유 생성
-8. **보안 이벤트 대시보드** — 실시간 이벤트 피드(SSE) + AI 차단 권고 패널 + Chart.js 막대 차트
+6. **AI 이상 행동 탐지** — Ollama 로컬 LLM이 트랜잭션/이벤트 기록 분석 → 관리자에게 차단 권고 + 자연어 차단 사유 생성
+7. **보안 이벤트 대시보드** — 실시간 이벤트 피드(SSE) + AI 차단 권고 패널 + Chart.js 막대 차트
 
 AI 원칙: 보안 차단 판단은 기존 결정론적 룰 유지. AI는 패턴 요약·자연어 설명·권고 생성에만 사용.
 MVP 범위 밖: Leaflet 지도 (위치 불일치 시각화), 도넛 차트 (시간 여유 시 추가)

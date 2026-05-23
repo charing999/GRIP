@@ -1,2 +1,2 @@
-// TODO:PHASE2_BACKEND - getEvents, chainVerify, aiAnalyze, streamEvents
+// TODO:PHASE2_BACKEND - getEvents, aiAnalyze, streamEvents
 module.exports = {};
