@@ -25,10 +25,7 @@
 
     <!-- 위치 동의 안내 -->
     <section class="location-consent" id="locationConsent">
-      <div class="location-status" id="locationStatus">
-        <!-- TODO:FRONTEND - Geolocation 동의 상태 표시 (허용/거부/대기) -->
-        <!-- 거부 시: "위치 정보 동의가 필요합니다" 안내 + 결제 폼 비활성화 -->
-      </div>
+      <div class="location-status" id="locationStatus"></div>
     </section>
 
     <!-- QR 스캔 및 결제 폼 -->
@@ -38,7 +35,6 @@
       <form class="payment-form" id="paymentForm">
         <div class="form-group">
           <label for="qrPayload">QR 페이로드</label>
-          <!-- TODO:FRONTEND - QR 카메라 스캔 또는 수동 입력 -->
           <input type="text" id="qrPayload" name="qr_payload" required placeholder="QR을 스캔하거나 페이로드를 입력하세요" />
         </div>
 
@@ -49,15 +45,12 @@
 
         <div class="form-error" id="paymentError"></div>
 
-        <!-- TODO:FRONTEND - 위치 동의 거부 시 버튼 비활성화 -->
         <button type="submit" class="btn btn-primary" id="payBtn">결제하기</button>
       </form>
     </section>
 
     <!-- 결제 결과 -->
-    <section class="payment-result hidden" id="paymentResult">
-      <!-- TODO:FRONTEND - 성공/실패 메시지 및 차감된 잔액 표시 -->
-    </section>
+    <section class="payment-result hidden" id="paymentResult"></section>
 
     <!-- 거래 내역 -->
     <section class="transaction-history" id="txHistory">
@@ -70,27 +63,13 @@
             <th>금액</th>
           </tr>
         </thead>
-        <tbody id="txTableBody">
-          <!-- TODO:FRONTEND - GET /api/payments/history 결과 렌더링 -->
-        </tbody>
+        <tbody id="txTableBody"></tbody>
       </table>
     </section>
 
   </main>
 
   <script src="/js/api.js"></script>
-  <!-- TODO:FRONTEND - /js/payment.js 구현 후 연결 -->
-  <script>
-    // Phase 2: 인증 가드만 수행. 비즈니스 로직은 Phase 3에서 구현.
-    (function guard() {
-      const user = API.getUser();
-      if (!user || user.role !== 'consumer') {
-        location.href = '/';
-      } else {
-        document.getElementById('consumerEmail').textContent   = user.email;
-        document.getElementById('consumerBalance').textContent = (user.balance ?? 0).toLocaleString();
-      }
-    })();
-  </script>
+  <script src="/js/payment.js"></script>
 </body>
 </html>

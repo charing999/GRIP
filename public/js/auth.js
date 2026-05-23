@@ -22,18 +22,6 @@ function setError(id, msg) {
   if (el) el.textContent = msg;
 }
 
-function renderNav(user) {
-  const nav = document.getElementById('navActions');
-  if (!nav) return;
-  if (user) {
-    nav.innerHTML = `
-      <span class="nav-user">${user.email} (${user.role})</span>
-      <button class="btn btn-outline" onclick="handleLogout()">로그아웃</button>
-    `;
-  } else {
-    nav.innerHTML = '';
-  }
-}
 
 function renderDashboard(user) {
   document.getElementById('authPanel').classList.add('hidden');
@@ -48,13 +36,13 @@ function renderDashboard(user) {
   const roleMap = { merchant: 'merchantPanel', consumer: 'consumerPanel', admin: 'adminPanel' };
   document.getElementById(roleMap[user.role])?.classList.remove('hidden');
 
-  renderNav(user);
+  API.renderNav(user);
 }
 
 function renderLoggedOut() {
   document.getElementById('authPanel').classList.remove('hidden');
   document.getElementById('dashboardPanel').classList.add('hidden');
-  renderNav(null);
+  API.renderNav(null);
 }
 
 async function handleLogin(e) {
@@ -106,6 +94,8 @@ async function handleLogout() {
   API.clearSession();
   renderLoggedOut();
 }
+
+API.handleLogout = handleLogout;
 
 // 페이지 로드 시 세션 복원
 (function init() {

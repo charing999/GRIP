@@ -29,4 +29,23 @@ async function api(method, path, body) {
   return { ok: res.ok, status: res.status, data: json };
 }
 
-window.API = { api, getToken, getUser, saveSession, clearSession };
+function renderNav(user) {
+  const nav = document.getElementById('navActions');
+  if (!nav) return;
+  if (user) {
+    nav.innerHTML = `
+      <span class="nav-user">${user.email} (${user.role})</span>
+      <button class="btn btn-outline" onclick="API.handleLogout()">로그아웃</button>
+    `;
+  } else {
+    nav.innerHTML = '';
+  }
+}
+
+async function handleLogout() {
+  await api('POST', '/auth/logout', {});
+  clearSession();
+  location.href = '/';
+}
+
+window.API = { api, getToken, getUser, saveSession, clearSession, renderNav, handleLogout };

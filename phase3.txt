@@ -1,0 +1,385 @@
+================================================================
+GRIP — PHASE 3: FRONTEND 구현 가이드
+================================================================
+작성일: 2026-05-24
+현재 상태: PHASE=3_FRONTEND
+
+----------------------------------------------------------------
+1. 구현 범위 요약
+----------------------------------------------------------------
+작업할 파일:
+  public/css/style.css          — 미완성 스타일 추가
+  public/js/payment.js          — 신규 (merchant + consumer 공용)
+  public/js/dashboard.js        — 신규 (관리자 대시보드)
+  public/js/api.js              — 필요 시 헬퍼 추가
+  public/merchant.html          — TODO:FRONTEND 항목 완성
+  public/payment.html           — TODO:FRONTEND 항목 완성
+  public/dashboard.html         — TODO:FRONTEND 항목 완성
+
+건드리지 말 것:
+  routes/, controllers/         — 버그픽스 외 수정 금지
+  db/schema.sql                 — 변경 금지
+
+----------------------------------------------------------------
+2. CSS (public/css/style.css)
+----------------------------------------------------------------
+현재 구현된 클래스:
+  .navbar, .nav-brand, .nav-actions, .nav-user
+  .btn, .btn-primary, .btn-outline
+  .main-content
+  .auth-panel, .tab-bar, .tab-btn, .auth-form, .form-title
+  .form-group, .form-error
+  .dashboard-panel, .user-card, .role-panel
+  .hidden
+
+추가해야 할 클래스:
+
+[공통]
+  .btn-danger      — 빨간 배경 (#dc2626), 흰 글자
+  .btn-ghost       — 테두리 없는 투명 버튼, muted 색
+  .nav-title       — 중앙 타이틀 텍스트 (navbar 내부)
+  .section-title   — 섹션 제목 (h2), font-size 1rem, font-weight 700
+  .section-sub     — 섹션 부제목 small 태그용, color: muted
+  .info-card       — 정보 카드 (border, radius, padding 1.25rem)
+
+[대시보드 레이아웃] — dashboard.html 전용
+  .dashboard-layout  — display: grid, grid-template-columns: 1fr 360px, gap: 1.5rem, padding: 1.5rem, max-width: 1400px, margin: auto
+  .dashboard-main    — 왼쪽 메인 영역, display: flex, flex-direction: column, gap: 1.5rem
+  .ai-alerts-panel   — 오른쪽 사이드바, display: flex, flex-direction: column, gap: 1rem
+
+[차트 섹션]
+  .chart-bar         — 카드 스타일 (bg, border, radius, padding 1.25rem)
+  .chart-wrapper     — height 280px, position: relative
+
+[이벤트 피드]
+  .event-feed        — 카드 스타일
+  .feed-controls     — 필터 버튼 행, display: flex, gap: .5rem, margin-bottom .75rem
+  .feed-list         — list-style: none, max-height 400px, overflow-y: auto, display: flex, flex-direction: column, gap: .25rem
+  .feed-item         — 한 줄 이벤트, font-size .8125rem, font-family monospace
+  .feed-dot          — 이벤트 타입별 색상 원형 dot (display: inline-block, width 8px, height 8px, border-radius 50%)
+  .feed-dot--sqli    — background: #dc2626 (danger)
+  .feed-dot--brute   — background: #ea580c (orange)
+  .feed-dot--qr      — background: #7c3aed (purple)
+  .feed-dot--ok      — background: #16a34a (success)
+  .feed-dot--ai      — background: #0891b2 (cyan)
+  .feed-dot--other   — background: #64748b (muted)
+  .filter-btn        — 필터 버튼, .btn-outline 기반, 소형(padding .25rem .75rem)
+  .filter-btn.active — 활성 필터 버튼, primary 색
+
+[AI 권고 카드]
+  .ai-controls       — 버튼 영역, margin-bottom .75rem
+  .alerts-list       — 카드 목록, display: flex, flex-direction: column, gap: .75rem
+  .alerts-empty      — "미처리 권고 없음" 텍스트, color: muted, text-align: center
+  .alert-card        — 카드 기본 (border, radius, padding 1rem, display: flex, flex-direction: column, gap: .5rem)
+  .alert-card--high  — border-left: 4px solid #dc2626
+  .alert-card--medium— border-left: 4px solid #ea580c
+  .alert-card--low   — border-left: 4px solid #64748b
+  .alert-card-header — display: flex, justify-content: space-between, align-items: center
+  .alert-badge       — font-size .75rem, font-weight 700, color: danger
+  .alert-risk        — font-size .75rem, color: muted
+  .alert-user        — font-size .875rem
+  .alert-patterns    — font-size .8125rem, color: muted
+  .alert-reason      — font-size .8125rem
+  .alert-actions     — display: flex, gap: .5rem, margin-top .25rem
+
+[상인/소비자 페이지]
+  .merchant-info, .merchant-qr, .qr-result  — 카드 스타일, margin-bottom 1.5rem
+  .consumer-info, .location-consent, .consumer-payment, .payment-result — 카드 스타일
+  .qr-form, .payment-form  — display: flex, flex-direction: column, gap: 1rem
+  .qr-display              — border: 2px dashed border, border-radius: radius, padding: 2rem, text-align: center, word-break: break-all, font-family: monospace, font-size: .875rem
+  .qr-meta                 — font-size .875rem, color: muted, display: flex, flex-direction: column, gap: .25rem
+  .qr-notice               — font-size .8125rem, color: muted
+  .location-status         — font-size .875rem, padding: .75rem, border-radius: radius, display: flex, align-items: center, gap: .5rem
+  .location-status.granted  — background: #dcfce7, color: #15803d
+  .location-status.denied   — background: #fee2e2, color: #991b1b
+  .location-status.pending  — background: #fef9c3, color: #854d0e
+  .transaction-history     — 카드 스타일
+  .tx-table                — width: 100%, border-collapse: collapse, font-size: .875rem
+  .tx-table th             — text-align: left, padding: .5rem .75rem, border-bottom: 2px solid border, color: muted, font-size: .8125rem
+  .tx-table td             — padding: .5rem .75rem, border-bottom: 1px solid border
+  .tx-table tbody tr:hover — background: bg (hover 효과)
+  .payment-result.success  — background: #dcfce7, color: #15803d, border-radius: radius, padding: 1rem
+  .payment-result.failure  — background: #fee2e2, color: #991b1b, border-radius: radius, padding: 1rem
+
+[반응형]
+  @media (max-width: 768px):
+    .dashboard-layout → grid-template-columns: 1fr (단일 열)
+    .main-content → margin: 1.5rem auto
+
+----------------------------------------------------------------
+3. public/js/payment.js  (신규 — merchant.html + payment.html 공용)
+----------------------------------------------------------------
+이 파일은 merchant.html과 payment.html 모두에서 로드된다.
+페이지 구분: location.pathname으로 '/merchant.html' vs '/payment.html' 판단.
+
+### 공통 유틸리티
+  renderNav(user)   — api.js의 API.getUser()를 이용해 nav 우측에 로그아웃 버튼 추가
+                      (auth.js의 renderNav와 동일 로직 재사용 또는 api.js로 이동)
+  setLocationStatus(el, state, msg)
+                    — state: 'pending'|'granted'|'denied', el에 클래스와 텍스트 설정
+  getCurrentPosition()
+                    — Promise<{lat, lng}> 래퍼 (navigator.geolocation.getCurrentPosition)
+  formatDate(iso)   — ISO → 'YYYY.MM.DD HH:MM' 한국 형식
+
+### Merchant 페이지 (/merchant.html)
+초기화 순서:
+  1. API.getUser() 확인 → 없거나 role !== 'merchant' → location.href='/'
+  2. renderNav(user)
+  3. #merchantEmail, #merchantBalance 채우기
+  4. Geolocation 권한 요청 → locationStatus 표시
+  5. loadTxHistory() 호출
+
+Geolocation 처리:
+  - 페이지 로드 시 getCurrentPosition() 호출
+  - 성공: lat/lng 변수에 저장, locationStatus → granted, #qrGenerateBtn 활성화
+  - 실패: locationStatus → denied, #qrGenerateBtn disabled=true
+
+QR 발급 (#qrForm submit):
+  - amount = parseInt(#qrAmount.value)
+  - POST /api/payments/request { amount, merchant_lat: lat, merchant_lng: lng }
+  - 성공: #qrResult .hidden 제거, #qrId.textContent 설정
+           #qrDisplay.textContent = data.qr_payload (텍스트로 표시)
+           #qrError 초기화
+  - 실패: #qrError.textContent = error.message
+
+QR 갱신 (#qrRefreshBtn click):
+  - #qrResult에 .hidden 추가 (이전 QR 숨김)
+  - #qrAmount.value 초기화 또는 유지
+  - 폼으로 포커스 이동
+
+거래 내역 (loadTxHistory):
+  - GET /api/payments/history
+  - #txTableBody에 행 렌더링: 일시 | 소비자 이메일 | 금액(원)
+  - 빈 경우: colspan=3 행 "거래 내역이 없습니다."
+
+### Consumer 페이지 (/payment.html)
+초기화 순서:
+  1. API.getUser() 확인 → 없거나 role !== 'consumer' → location.href='/'
+  2. renderNav(user)
+  3. #consumerEmail, #consumerBalance 채우기
+  4. Geolocation 권한 요청 → locationStatus 표시
+  5. loadTxHistory() 호출
+
+Geolocation 처리:
+  - merchant와 동일 패턴
+  - 거부 시 #payBtn disabled=true + 안내 문구
+
+결제 처리 (#paymentForm submit):
+  - qr_payload = #qrPayload.value.trim()
+  - amount = parseInt(#payAmount.value)
+  - getCurrentPosition()으로 현재 위치 재취득 (결제 시점 위치)
+  - POST /api/payments/verify { qr_payload, consumer_lat: lat, consumer_lng: lng, amount }
+  - 성공: #paymentResult .hidden 제거, success 클래스 추가, 결제 완료 메시지 + 차감 금액 표시
+           #consumerBalance 업데이트 (user.balance - amount)
+           loadTxHistory() 재호출
+  - 실패: #paymentResult .hidden 제거, failure 클래스 추가, 에러 메시지 표시
+           특수 에러 코드별 메시지:
+             INVALID_QR       → "QR이 유효하지 않습니다."
+             REPLAY_QR        → "이미 사용된 QR입니다."
+             LOCATION_MISMATCH→ "결제 위치가 상점과 너무 멀리 떨어져 있습니다."
+             INSUFFICIENT_BALANCE → "잔액이 부족합니다."
+             USER_BLOCKED     → "계정이 차단되었습니다."
+
+거래 내역 (loadTxHistory):
+  - GET /api/payments/history
+  - #txTableBody에 행 렌더링: 일시 | 상점 이메일 | 금액(원)
+  - 빈 경우: colspan=3 행 "결제 내역이 없습니다."
+
+----------------------------------------------------------------
+4. public/js/dashboard.js  (신규 — dashboard.html 전용)
+----------------------------------------------------------------
+의존성: api.js (로드 선행), Chart.js CDN
+
+초기화:
+  1. API.getUser() 확인 → 없거나 role !== 'admin' → location.href='/'
+  2. renderNav(user)
+  3. initSSE()
+  4. loadAiAlerts()
+  5. loadStatsAndRenderChart()
+  6. setInterval(loadStatsAndRenderChart, 10000)   — 10초 폴링
+
+### SSE (initSSE)
+  const es = new EventSource('/api/security/stream', {
+    headers 포함 불가 → 대신: URL 파라미터로 토큰 전달
+    예: `/api/security/stream?token=${API.getToken()}`
+  })
+  ※ 서버가 query token 파싱을 지원하는지 확인 필요
+     지원 안 하면 쿠키 방식으로 우회하거나 폴링으로 대체
+
+  es.onmessage = (e) => {
+    const event = JSON.parse(e.data)
+    prependFeedItem(event)
+    if (event.event_type === 'AI_ALERT') prependAiAlert(event)
+  }
+  es.onerror = () => { /* 재연결은 브라우저가 자동 처리 */ }
+
+  현재 활성 필터 상태 유지 → prependFeedItem 시 필터 미적용 이벤트는 숨김 처리
+
+### 이벤트 피드 (prependFeedItem)
+  새 <li class="feed-item"> 요소 생성:
+    [HH:MM:SS] <span class="feed-dot feed-dot--{type}"></span> {event_type}  {ip}  →  {detail.message}
+  #feedList prepend
+  100건 초과 시 마지막 자식 제거
+
+  이벤트 타입 → dot 클래스 매핑:
+    SQLI_DETECTED / SQLI_BLOCKED → sqli
+    LOGIN_FAIL / BRUTE_FORCE / ACCOUNT_LOCKED → brute
+    INVALID_QR / REPLAY_QR / LOCATION_MISMATCH → qr
+    PAYMENT_OK → ok
+    AI_ALERT → ai
+    나머지 → other
+
+### 이벤트 필터
+  필터 버튼: 전체 | SQLI | BRUTE | QR | AI | 결제
+  버튼 클릭 시:
+    - 활성 버튼 토글
+    - #feedList 내 모든 .feed-item의 data-type 속성 체크 → 해당 필터 외 hidden 처리
+
+### 차트 (loadStatsAndRenderChart)
+  GET /api/dashboard/stats?minutes=10
+  응답: { buckets: [{minute, counts}], minutes }
+
+  이벤트 타입 종류: ['SQLI_DETECTED','LOGIN_FAIL','ACCOUNT_LOCKED','INVALID_QR','REPLAY_QR','LOCATION_MISMATCH','PAYMENT_OK','AI_ALERT']
+  Chart.js Bar 차트:
+    x축: 각 bucket의 minute (HH:MM 포맷)
+    dataset per event_type (stacked bar)
+    색상 팔레트 정의
+
+  차트 인스턴스 재사용: 최초 생성 후 chart.data 업데이트 + chart.update()
+
+### AI 권고 (loadAiAlerts)
+  GET /api/dashboard/ai-alerts
+  alerts 배열 → #alertsList에 카드 렌더링
+  빈 경우: #alertsEmpty 표시 / 있으면 hidden
+
+  alert-card 렌더링 함수 buildAlertCard(alert):
+    risk_level = alert.detail?.risk_level → 'high'|'medium'|'low' → alert-card--{risk}
+    user_id = alert.user_id
+    email = alert.user?.email
+    patterns = alert.detail?.patterns?.join(', ')
+    reason = alert.detail?.reason
+
+    차단 버튼: data-user-id="{user_id}", onclick=handleBlockUser
+    무시 버튼: data-alert-id="{alert.id}", onclick=handleDismissAlert
+
+### 사용자 차단 (handleBlockUser)
+  POST /api/admin/users/{userId}/block
+  성공 시:
+    - 해당 카드 DOM에서 제거
+    - #alertsEmpty 재평가
+    - 간단한 성공 알림 (alert() 또는 인라인 메시지)
+
+### 알림 무시 (handleDismissAlert)
+  서버 상태는 변경 없음 (별도 API 없음)
+  해당 카드 DOM에서만 제거
+  #alertsEmpty 재평가
+
+### 즉시 AI 분석 (#aiAnalyzeBtn click)
+  POST /api/security/ai-analyze
+  버튼 disabled 처리 + 텍스트 '분석 중...'
+  완료 후 버튼 복구 + loadAiAlerts() 재호출
+
+----------------------------------------------------------------
+5. HTML 수정사항
+----------------------------------------------------------------
+
+### dashboard.html
+  Line 9: Chart.js script 태그 주석 해제
+    → <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  Line 37: 이벤트 필터 버튼 추가
+    → <button class="filter-btn active" data-filter="all">전체</button>
+       <button class="filter-btn" data-filter="sqli">SQLI</button>
+       <button class="filter-btn" data-filter="brute">브루트포스</button>
+       <button class="filter-btn" data-filter="qr">QR</button>
+       <button class="filter-btn" data-filter="ai">AI</button>
+       <button class="filter-btn" data-filter="ok">결제</button>
+
+  Line 85 이후: 인라인 guard 스크립트 → dashboard.js 로드로 교체
+    → <script src="/js/dashboard.js"></script>
+    (dashboard.js 내부에서 guard 처리)
+
+### merchant.html
+  Line 85 이후: 인라인 guard 스크립트 → payment.js 로드로 교체
+    → <script src="/js/payment.js"></script>
+
+### payment.html
+  Line 82 이후: 인라인 guard 스크립트 → payment.js 로드로 교체
+    → <script src="/js/payment.js"></script>
+
+----------------------------------------------------------------
+6. api.js 보완 사항
+----------------------------------------------------------------
+현재 window.API 에 노출된 함수:
+  api(method, path, body), getToken(), getUser(), saveSession(), clearSession()
+
+추가 권장 사항:
+  renderNav(user) — 공통 nav 렌더링 로직을 api.js로 이동
+                    auth.js와 payment.js, dashboard.js 모두 사용하므로
+
+  현재 auth.js에 renderNav가 정의되어 있으나 merchant.html과 payment.html은
+  auth.js를 로드하지 않으므로 payment.js 내에 로컬로 정의하거나
+  api.js로 이동해 공유해야 함.
+
+SSE 인증 문제:
+  EventSource는 Authorization 헤더를 직접 설정할 수 없음.
+  현재 auth.middleware.js의 토큰 파싱 방식 확인 필요.
+  → query 파라미터 (?token=...) 지원하도록 middleware 수정이 필요하면
+    버그픽스로 간주 (Phase 3에서 허용)
+
+----------------------------------------------------------------
+7. SSE 미들웨어 버그픽스 가능 여부
+----------------------------------------------------------------
+현재 auth.middleware.js:
+  req.headers.authorization 에서만 Bearer 토큰 파싱
+
+수정 필요 내용 (버그픽스 — Phase 3 허용):
+  Authorization 헤더가 없을 때 req.query.token fallback 추가
+  → EventSource URL: /api/security/stream?token={API.getToken()}
+
+----------------------------------------------------------------
+8. API 엔드포인트 정리 (Phase 3에서 사용하는 전체 목록)
+----------------------------------------------------------------
+인증:
+  POST /api/auth/login            — auth.js에서 이미 구현됨
+  POST /api/auth/register         — auth.js에서 이미 구현됨
+  POST /api/auth/logout           — auth.js에서 이미 구현됨
+
+결제:
+  POST /api/payments/request      — { amount, merchant_lat, merchant_lng }
+                                    응답: { qr_id, hmac_signature, qr_payload, expires_at }
+  POST /api/payments/verify       — { qr_payload, consumer_lat, consumer_lng, amount }
+                                    응답: { message, amount, merchant_id }
+  GET  /api/payments/history      — 응답: { transactions: [...] }
+                                    각 transaction: created_at, merchant.email, consumer.email, amount
+
+보안/대시보드:
+  GET  /api/security/stream       — SSE (event_type, ip, user_id, detail, created_at)
+  GET  /api/security/events       — 폴링 대안 (SSE가 안 될 때)
+  POST /api/security/ai-analyze   — 즉시 AI 분석 트리거
+  GET  /api/dashboard/stats       — ?minutes=10, 응답: { buckets, minutes }
+  GET  /api/dashboard/ai-alerts   — 응답: { alerts: [...] }
+  POST /api/admin/users/:id/block   — { reason? }
+  POST /api/admin/users/:id/unblock — 차단 해제
+
+----------------------------------------------------------------
+9. 핵심 유저 플로우 (완료 기준)
+----------------------------------------------------------------
+[ ] 소비자: 회원가입 → 로그인 → 잔액 확인 → QR 입력 → 결제 → 결과 확인 → 거래 내역
+[ ] 상인:   회원가입 → 로그인 → 위치 동의 → QR 발급 → QR 표시 → 거래 내역
+[ ] 관리자: 로그인 → 대시보드 → 이벤트 피드(SSE) → 차트 → AI 권고 카드 → 사용자 차단
+[ ] 비로그인: 보호된 페이지(/merchant, /payment, /dashboard) 접근 시 / 로 리다이렉트
+[ ] API 에러 시 에러 메시지가 UI에 표시됨
+[ ] 위치 거부 시 QR 발급/결제 버튼 비활성화됨
+
+----------------------------------------------------------------
+10. 구현 순서 (권장)
+----------------------------------------------------------------
+Step 1. style.css 나머지 클래스 추가
+Step 2. api.js에 renderNav 공통 함수 추가 + SSE용 token query fallback
+Step 3. middleware/auth.middleware.js: query token fallback 버그픽스
+Step 4. payment.js 구현 (merchant 먼저, consumer 다음)
+Step 5. dashboard.js 구현 (차트 → 이벤트 피드 → AI 권고 순)
+Step 6. HTML TODO 주석 항목 마무리
+Step 7. 브라우저 전체 플로우 수동 확인
+================================================================

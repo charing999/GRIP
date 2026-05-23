@@ -5,8 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GRIP — 보안 대시보드</title>
   <link rel="stylesheet" href="/css/style.css" />
-  <!-- TODO:FRONTEND - Chart.js CDN 연결 -->
-  <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <nav class="navbar">
@@ -24,7 +23,6 @@
       <section class="chart-bar" id="chartSection">
         <h2 class="section-title">이벤트 통계 <small class="section-sub">(최근 10분, 1분 단위)</small></h2>
         <div class="chart-wrapper">
-          <!-- TODO:FRONTEND - Chart.js 막대 차트 렌더링 (GET /api/dashboard/stats 폴링, 10초 간격) -->
           <canvas id="barChart"></canvas>
         </div>
       </section>
@@ -34,14 +32,15 @@
         <h2 class="section-title">실시간 보안 이벤트</h2>
 
         <div class="feed-controls">
-          <!-- TODO:FRONTEND - 이벤트 타입별 필터 버튼 -->
+          <button class="filter-btn active" data-filter="all">전체</button>
+          <button class="filter-btn" data-filter="sqli">SQLI</button>
+          <button class="filter-btn" data-filter="brute">브루트포스</button>
+          <button class="filter-btn" data-filter="qr">QR</button>
+          <button class="filter-btn" data-filter="ai">AI</button>
+          <button class="filter-btn" data-filter="ok">결제</button>
         </div>
 
-        <ol class="feed-list" id="feedList" reversed>
-          <!-- TODO:FRONTEND - SSE EventSource('/api/security/stream') 수신 시 prepend -->
-          <!-- 형식: [HH:MM:SS] {dot} {event_type}  {ip}  →  {detail.message} -->
-          <!-- 최대 100건, 초과 시 하단 제거 -->
-        </ol>
+        <ol class="feed-list" id="feedList" reversed></ol>
       </section>
 
     </main>
@@ -51,30 +50,10 @@
       <h2 class="section-title">AI 차단 권고</h2>
 
       <div class="ai-controls">
-        <!-- TODO:FRONTEND - 즉시 분석 버튼 (POST /api/security/ai-analyze) -->
         <button class="btn btn-outline" id="aiAnalyzeBtn" type="button">즉시 분석 실행</button>
       </div>
 
-      <div class="alerts-list" id="alertsList">
-        <!-- TODO:FRONTEND - GET /api/dashboard/ai-alerts 결과 카드 렌더링 -->
-        <!-- SSE에서 AI_ALERT 수신 시 자동 추가 -->
-        <!--
-          카드 형식:
-          <article class="alert-card alert-card--high">
-            <header class="alert-card-header">
-              <span class="alert-badge">⚠ AI 차단 권고</span>
-              <span class="alert-risk">위험도: HIGH</span>
-            </header>
-            <p class="alert-user">사용자: user@email.com</p>
-            <p class="alert-patterns">감지 패턴: ...</p>
-            <p class="alert-reason">사유: ...</p>
-            <footer class="alert-actions">
-              <button class="btn btn-danger"   data-user-id="">차단</button>
-              <button class="btn btn-ghost"    data-alert-id="">무시</button>
-            </footer>
-          </article>
-        -->
-      </div>
+      <div class="alerts-list" id="alertsList"></div>
 
       <p class="alerts-empty" id="alertsEmpty">미처리 권고 없음</p>
     </aside>
@@ -82,15 +61,6 @@
   </div>
 
   <script src="/js/api.js"></script>
-  <!-- TODO:FRONTEND - /js/dashboard.js 구현 후 연결 -->
-  <script>
-    // Phase 2: 인증 가드만 수행. 비즈니스 로직은 Phase 3에서 구현.
-    (function guard() {
-      const user = API.getUser();
-      if (!user || user.role !== 'admin') {
-        location.href = '/';
-      }
-    })();
-  </script>
+  <script src="/js/dashboard.js"></script>
 </body>
 </html>

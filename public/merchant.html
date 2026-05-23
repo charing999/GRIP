@@ -30,15 +30,11 @@
       <form class="qr-form" id="qrForm">
         <div class="form-group">
           <label for="qrAmount">결제 금액 (원)</label>
-          <!-- TODO:FRONTEND - 금액 입력 유효성 검사 -->
           <input type="number" id="qrAmount" name="amount" min="1" required placeholder="예: 5000" />
         </div>
 
-        <div class="location-status" id="locationStatus">
-          <!-- TODO:FRONTEND - Geolocation 동의 상태 표시 (허용/거부/대기) -->
-        </div>
+        <div class="location-status" id="locationStatus"></div>
 
-        <!-- TODO:FRONTEND - 위치 동의 거부 시 버튼 비활성화 -->
         <button type="submit" class="btn btn-primary" id="qrGenerateBtn">QR 생성</button>
       </form>
 
@@ -49,16 +45,13 @@
     <section class="qr-result hidden" id="qrResult">
       <h2 class="section-title">발급된 QR</h2>
 
-      <div class="qr-display" id="qrDisplay">
-        <!-- TODO:FRONTEND - QR 이미지 또는 페이로드 텍스트 표시 -->
-      </div>
+      <div class="qr-display" id="qrDisplay"></div>
 
       <div class="qr-meta">
         <p>QR ID: <code id="qrId"></code></p>
         <p class="qr-notice">QR을 새로 발급하면 이전 QR은 자동으로 무효화됩니다.</p>
       </div>
 
-      <!-- TODO:FRONTEND - QR 갱신 버튼 -->
       <button class="btn btn-outline" id="qrRefreshBtn" type="button">새 QR 발급</button>
     </section>
 
@@ -73,27 +66,13 @@
             <th>금액</th>
           </tr>
         </thead>
-        <tbody id="txTableBody">
-          <!-- TODO:FRONTEND - GET /api/payments/history 결과 렌더링 -->
-        </tbody>
+        <tbody id="txTableBody"></tbody>
       </table>
     </section>
 
   </main>
 
   <script src="/js/api.js"></script>
-  <!-- TODO:FRONTEND - /js/payment.js 구현 후 연결 -->
-  <script>
-    // Phase 2: 인증 가드만 수행. 비즈니스 로직은 Phase 3에서 구현.
-    (function guard() {
-      const user = API.getUser();
-      if (!user || user.role !== 'merchant') {
-        location.href = '/';
-      } else {
-        document.getElementById('merchantEmail').textContent  = user.email;
-        document.getElementById('merchantBalance').textContent = (user.balance ?? 0).toLocaleString();
-      }
-    })();
-  </script>
+  <script src="/js/payment.js"></script>
 </body>
 </html>
