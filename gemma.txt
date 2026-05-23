@@ -1,0 +1,328 @@
+GRIP — Gemma 4 로컬 설치 및 사용 가이드
+작성일: 2026-05-23
+
+================================================================================
+1. 개요
+================================================================================
+
+GRIP 프로젝트의 AI 이상 행동 분석(4.6절)은 로컬 LLM으로 동작한다.
+외부 API 호출 없이 발표 현장에서도 인터넷 없이 실행 가능하다.
+
+선택 모델: Google Gemma 4
+이유:
+  - 한국어 이해·생성 품질이 동급 크기 모델 중 우수
+  - Apache 2.0 라이선스 (상업·시연 제약 없음)
+  - Ollama를 통해 단일 명령으로 설치 가능
+  - 4B 크기가 RAM 8GB 노트북에서 실용적 속도로 동작
+
+================================================================================
+2. 사전 요구사항
+================================================================================
+
+2.1 Ollama 설치
+  Windows:
+    https://ollama.com/download 에서 OllamaSetup.exe 다운로드 후 실행
+    설치 완료 후 시스템 트레이에 Ollama 아이콘 확인
+
+  설치 확인:
+    ollama --version
+
+  Ollama 서버 상태 확인:
+    curl http://localhost:11434
+    → "Ollama is running" 응답이면 정상
+
+2.2 하드웨어 권장 사양
+  ──────────────────────────────────────────────────
+  모델 태그        파라미터   VRAM/RAM    응답 속도
+  ──────────────────────────────────────────────────
+  gemma4:2b        2B         ~2 GB       빠름 (권장: RAM 4GB 이상)
+  gemma4           4B         ~4 GB       보통 (권장: RAM 8GB 이상)  ← 이 프로젝트 기본값
+  gemma4:12b       12B        ~8 GB       느림 (GPU 있을 때)
+  ──────────────────────────────────────────────────
+  CPU만 있는 노트북: gemma4 (4B) 기준 응답 5~15초. AI 분석은 비동기라 UX 무관.
+
+================================================================================
+3. Gemma 4 설치
+================================================================================
+
+3.1 모델 다운로드 (최초 1회)
+
+  # 4B (기본 권장 — 이 프로젝트 기본값)
+  ollama pull gemma4
+
+  # 저사양 노트북용 2B
+  ollama pull gemma4:2b
+
+  # 다운로드 확인
+  ollama list
+  → gemma4 이 목록에 나타나면 완료
+
+3.2 동작 확인 (대화형 테스트)
+
+  ollama run gemma4
+  >>> 다음 JSON만 출력하세요: {"test": true}
+
+  Ctrl+D 로 종료
+
+3.3 REST API 확인
+
+  curl http://localhost:11434/api/generate \
+    -d "{\"model\":\"gemma4\",\"prompt\":\"안녕\",\"stream\":false}"
+
+  → {"response":"안녕하세요..."} 형태 응답 확인
+
+================================================================================
+4. 프로젝트 연동
+================================================================================
+
+4.1 환경변수 설정 (.env)
+
+  OLLAMA_URL=http://localhost:11434
+  OLLAMA_MODEL=gemma4
+  AI_ANALYSIS_INTERVAL_MINUTES=5
+
+  저사양 노트북이면:
+  OLLAMA_MODEL=gemma4:2b
+
+4.2 lib/localAI.js 동작 원리
+
+  이 파일은 Ollama의 /api/generate 엔드포인트를 fetch로 호출한다.
+  npm 패키지 추가 없이 Node.js 18+ 내장 fetch만 사용한다.
+
+  핵심 흐름:
+    ask(systemPrompt, userPrompt)
+      → POST http://localhost:11434/api/generate
+         { model: process.env.OLLAMA_MODEL,
+           system: systemPrompt,
+           prompt: userPrompt,
+           stream: false,
+           format: "json" }    ← JSON 모드 강제
+      → response.response 반환 (JSON 문자열)
+      → 파싱 실패 시 null 반환 (서비스 중단 없음)
+
+  Ollama 미응답 시 동작:
+    fetch timeout 10초 설정.
+    timeout 또는 에러 시 null 반환 → aiAnalyzer.js가 해당 사이클 스킵.
+    서비스(결제·로그인 등)에는 영향 없음.
+
+4.3 Gemma 4 전용 시스템 프롬프트 (services/aiAnalyzer.js)
+
+  Gemma 4는 JSON 모드(format: "json")에서 스키마를 명시할수록 정확도가 높다.
+  아래 형식을 시스템 프롬프트에 포함한다:
+
+  ───────────────────────────────────────────────────
+  당신은 결제 보안 시스템의 이상 행동 분석 AI입니다.
+  다음 JSON 스키마만 출력하고 다른 텍스트는 절대 출력하지 마세요:
+
+  {
+    "risk_level": "HIGH" | "MEDIUM" | "LOW",
+    "patterns": ["감지된 패턴 설명 (한국어)"],
+    "reason_ko": "관리자를 위한 상세 분석 (한국어, 2~3문장)",
+    "block_recommendation": true | false,
+    "user_message_ko": "차단 시 사용자에게 보여줄 메시지 (한국어, 1문장)"
+  }
+  ───────────────────────────────────────────────────
+
+4.4 컨텍스트 입력 형식 (Gemma 4에 넘기는 userPrompt 구조)
+
+  분석 대상: user@example.com (user_id: <UUID>)
+  분석 시각: 2026-05-23T17:30:00Z
+
+  [최근 security_events]
+  2026-05-23T17:20:01Z INVALID_QR    {"payment_id":"...","message":"서명 불일치"}
+  2026-05-23T17:22:15Z REPLAY_QR     {"payment_id":"...","message":"이미 사용된 QR"}
+  2026-05-23T17:24:33Z INVALID_QR    {"payment_id":"...","message":"서명 불일치"}
+  2026-05-23T17:26:47Z LOCATION_MISMATCH {"distance_m":148523}
+
+  [최근 transactions]
+  (없음)
+
+  위 데이터를 바탕으로 이 사용자의 위험도를 분석하세요.
+
+================================================================================
+5. 발표 전 체크리스트
+================================================================================
+
+  [ ] 발표 노트북에 Ollama 설치 완료
+  [ ] ollama pull gemma4 완료 (인터넷 없는 발표장 대비 — 미리 다운로드 필수)
+  [ ] ollama list 에서 gemma4 확인
+  [ ] .env에 OLLAMA_MODEL=gemma4 설정
+  [ ] 서버 기동 후 POST /api/security/ai-analyze 호출 → AI_ALERT 이벤트 생성 확인
+  [ ] 대시보드 AI 권고 패널에 카드 출력 확인
+
+================================================================================
+6. 문제 해결
+================================================================================
+
+증상: "connection refused" (Ollama 서버 미기동)
+  해결: 시스템 트레이에서 Ollama 실행, 또는 `ollama serve` 명령 실행
+
+증상: 응답이 JSON이 아닌 일반 텍스트
+  해결: format:"json" 이 요청에 포함됐는지 확인.
+        모델이 gemma4인지 확인 (ollama list).
+
+증상: 응답 속도 10초 이상
+  해결: gemma4:2b 로 변경 (.env OLLAMA_MODEL=gemma4:2b)
+        또는 GPU가 있으면 CUDA 드라이버 설치 후 Ollama가 자동 활용
+
+증상: 한국어 응답 품질 저하
+  해결: 시스템 프롬프트 맨 앞에 "반드시 한국어로만 답변하세요." 추가
+        또는 gemma4:12b 로 업그레이드 (GPU 필요)
+
+================================================================================
+7. 배포 시 대책
+================================================================================
+
+로컬 개발 환경과 달리, 서버 배포 시에는 Ollama를 별도로 준비하거나
+AI 기능을 대체·비활성화하는 전략이 필요하다.
+
+────────────────────────────────────────────────────────────────────────────────
+7.1 상황별 전략 선택
+────────────────────────────────────────────────────────────────────────────────
+
+  상황                          권장 전략
+  ──────────────────────────────────────────────────────────────
+  해커톤 발표 (로컬 시연)       전략 A — 발표 노트북에 Ollama 직접 설치
+  클라우드 서버 배포            전략 B — 서버에 Ollama 설치 (Docker)
+  서버 리소스 부족              전략 C — Google AI Studio API (호스팅 Gemma)
+  AI 기능 없이 빠른 배포        전략 D — AI 기능 비활성화 플래그
+  ──────────────────────────────────────────────────────────────
+
+────────────────────────────────────────────────────────────────────────────────
+7.2 전략 A — 로컬 시연 (해커톤 기본)
+────────────────────────────────────────────────────────────────────────────────
+
+  발표 노트북에서 Node.js 서버와 Ollama를 함께 실행한다.
+  인터넷 없는 발표장에서도 동작한다.
+
+  실행 순서:
+    1. ollama serve              # Ollama 백그라운드 기동
+    2. npm run dev               # Express 서버 기동
+    3. 브라우저에서 시연
+
+  주의:
+    발표 전날 반드시 ollama pull gemma4 완료.
+    발표장 Wi-Fi 믿지 말 것 — 모델은 로컬에 미리 저장돼 있어야 함.
+
+────────────────────────────────────────────────────────────────────────────────
+7.3 전략 B — 클라우드 서버에 Ollama 설치 (Docker Compose)
+────────────────────────────────────────────────────────────────────────────────
+
+  docker-compose.yml 구성:
+
+    services:
+      app:
+        build: .
+        ports:
+          - "3000:3000"
+        environment:
+          OLLAMA_URL: http://ollama:11434
+          OLLAMA_MODEL: gemma4
+        depends_on:
+          - ollama
+
+      ollama:
+        image: ollama/ollama
+        volumes:
+          - ollama_data:/root/.ollama   # 모델 파일 영속화
+        deploy:
+          resources:
+            reservations:
+              memory: 6G               # gemma4 (4B) 기준 최소 메모리
+
+    volumes:
+      ollama_data:
+
+  초기 모델 다운로드 (서버 최초 배포 시 1회):
+    docker compose exec ollama ollama pull gemma4
+
+  서버 사양 최소 요건:
+    gemma4 (4B): RAM 8GB, vCPU 4코어 이상
+    gemma4:2b  : RAM 4GB, vCPU 2코어 이상
+
+  비용 참고 (예시, 실제 요금은 공급자 확인):
+    AWS t3.xlarge (16GB RAM): 약 $0.17/시간
+    이 프로젝트는 해커톤 데모용이므로 단기 사용 후 종료
+
+────────────────────────────────────────────────────────────────────────────────
+7.4 전략 C — Google AI Studio API (호스팅 Gemma 4)
+────────────────────────────────────────────────────────────────────────────────
+
+  서버에 Ollama를 올리기 어려울 때 Google이 호스팅하는 Gemma API를 사용한다.
+  동일 모델이므로 출력 품질이 동등하다.
+
+  설정:
+    1. https://aistudio.google.com 에서 API 키 발급 (무료 티어 존재)
+    2. .env에 추가:
+         GEMMA_API_KEY=<발급받은 키>
+         GEMMA_API_URL=https://generativelanguage.googleapis.com/v1beta/models/gemma-4:generateContent
+
+  lib/localAI.js 분기 처리:
+    OLLAMA_URL 이 설정돼 있으면 → Ollama 호출 (로컬)
+    GEMMA_API_KEY 가 설정돼 있으면 → Google AI Studio 호출
+    둘 다 없으면 → AI_UNAVAILABLE 반환
+
+  Google AI Studio 호출 형식:
+    POST {GEMMA_API_URL}?key={GEMMA_API_KEY}
+    Content-Type: application/json
+    {
+      "contents": [{ "parts": [{ "text": "<prompt>" }] }],
+      "generationConfig": { "responseMimeType": "application/json" }
+    }
+
+  주의:
+    무료 티어 분당 요청 제한이 있음 — AI_ANALYSIS_INTERVAL_MINUTES를 10 이상으로 설정
+    API 키를 클라이언트 코드에 노출하지 않는다 (서버 사이드 전용)
+
+────────────────────────────────────────────────────────────────────────────────
+7.5 전략 D — AI 기능 비활성화 (긴급 폴백)
+────────────────────────────────────────────────────────────────────────────────
+
+  서버 리소스 부족, 시간 부족 등으로 AI 기능을 포함한 배포가 불가할 때.
+  결제·보안 로직(결정론적 룰)은 영향 없이 동작한다.
+
+  .env 설정:
+    DISABLE_AI=true
+
+  서버 동작:
+    aiAnalyzer.js: DISABLE_AI=true 이면 setInterval 등록 안 함
+    POST /api/security/ai-analyze: 503 반환 + { code: "AI_UNAVAILABLE" }
+    차단 기능: /api/admin/users/:id/block 은 여전히 동작
+              (관리자가 수동으로 이벤트 피드 보고 판단)
+
+  대시보드:
+    AI 권고 패널 자리에 "AI 분석 비활성화 상태" 안내 문구 표시
+
+────────────────────────────────────────────────────────────────────────────────
+7.6 배포 전략 결정 트리
+────────────────────────────────────────────────────────────────────────────────
+
+  발표장에서 직접 노트북으로 시연하는가?
+    YES → 전략 A (로컬 Ollama)
+
+  외부에서 접근 가능한 서버가 필요한가?
+    서버 RAM 8GB 이상 확보 가능?
+      YES → 전략 B (Docker + Ollama)
+      NO  → Google AI Studio API 키 발급 가능?
+              YES → 전략 C (Google AI Studio)
+              NO  → 전략 D (AI 비활성화)
+
+────────────────────────────────────────────────────────────────────────────────
+7.7 배포 환경별 .env 예시
+────────────────────────────────────────────────────────────────────────────────
+
+  [전략 A — 로컬]
+    OLLAMA_URL=http://localhost:11434
+    OLLAMA_MODEL=gemma4
+
+  [전략 B — Docker Compose]
+    OLLAMA_URL=http://ollama:11434
+    OLLAMA_MODEL=gemma4
+
+  [전략 C — Google AI Studio]
+    OLLAMA_URL=                          # 비워두면 Ollama 호출 안 함
+    GEMMA_API_KEY=<your-api-key>
+    GEMMA_API_URL=https://generativelanguage.googleapis.com/v1beta/models/gemma-4:generateContent
+
+  [전략 D — AI 비활성화]
+    DISABLE_AI=true

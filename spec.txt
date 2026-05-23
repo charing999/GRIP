@@ -7,7 +7,7 @@ GRIP — 전통시장 QR 결제 보안 시스템 기술 명세서
 
 시스템 명칭: GRIP (Guard-Reinforced Integrity Payment)
 목적: 전통시장 상인-소비자 간 QR 결제 흐름에서 QR 위변조·계정 탈취·
-      SQL 인젝션·거래 데이터 변조를 탐지·차단하는 보안 데모 시스템
+      SQL 인젝션·거래 데이터 변조·위치 불일치를 탐지·차단하는 보안 데모 시스템
 행사: SOGRA 해커톤
 스택: Node.js (Express) + Supabase (PostgreSQL + Auth) + Vanilla JS
 구현 범위: 실제 금융 연동 없음. 웹 내부 포인트(가상 화폐)를 현금으로 간주
@@ -34,6 +34,9 @@ password_hash         TEXT                 NOT NULL
 balance               INTEGER              NOT NULL DEFAULT 0, CHECK >= 0  [단위: 원]
 failed_login_count    INTEGER              NOT NULL DEFAULT 0
 locked_until          TIMESTAMPTZ          NULL  [잠금 만료 시각. NULL = 잠금 없음]
+is_blocked            BOOLEAN              NOT NULL DEFAULT FALSE  [AI 권고 차단 여부]
+block_reason          TEXT                 NULL  [AI가 생성한 한국어 차단 사유]
+blocked_at            TIMESTAMPTZ          NULL  [차단 시각]
 created_at            TIMESTAMPTZ          NOT NULL DEFAULT now()
 
 3.2 payment_requests  (동적 QR 발급 단위)
@@ -44,12 +47,18 @@ merchant_id           UUID                 FK → users(id) NOT NULL
 amount                INTEGER              NOT NULL, CHECK > 0  [단위: 원]
 nonce                 TEXT                 UNIQUE NOT NULL  [UUID v4, 1회용]
 hmac_signature        TEXT                 NOT NULL
+merchant_lat          DOUBLE PRECISION     NOT NULL  [상인 발급 시점 위도]
+merchant_lng          DOUBLE PRECISION     NOT NULL  [상인 발급 시점 경도]
 expires_at            TIMESTAMPTZ          NOT NULL  [= 생성 시각 + 60초]
 status                TEXT                 NOT NULL DEFAULT 'pending'
                                            CHECK IN ('pending','completed','expired','rejected')
 created_at            TIMESTAMPTZ          NOT NULL DEFAULT now()
 
   인덱스: (merchant_id, status) — 상인별 pending QR 조회용
+
+  위치 좌표 범위 제약:
+    merchant_lat: CHECK BETWEEN -90 AND 90
+    merchant_lng: CHECK BETWEEN -180 AND 180
 
 3.3 transactions  (결제 완료 기록 — 해시 체인)
 ─────────────────────────────────────────────────────
@@ -78,7 +87,9 @@ id                    BIGSERIAL            PK
 event_type            TEXT                 NOT NULL
                                            CHECK IN ('SQLI_BLOCKED','BRUTE_FORCE',
                                                      'INVALID_QR','REPLAY_QR',
-                                                     'CHAIN_BROKEN','PAYMENT_OK')
+                                                     'LOCATION_MISMATCH',
+                                                     'CHAIN_BROKEN','PAYMENT_OK',
+                                                     'AI_ALERT')
 ip                    TEXT                 NULL
 user_id               UUID                 FK → users(id) NULL
 detail                JSONB                NULL  [이벤트별 부가 정보]
@@ -96,8 +107,10 @@ created_at            TIMESTAMPTZ          NOT NULL DEFAULT now()
 서명 알고리즘: HMAC-SHA256
 
 서명 입력(message):
-  {payment_id}:{merchant_id}:{amount}:{nonce}:{expires_at}
+  {payment_id}:{merchant_id}:{amount}:{nonce}:{expires_at}:{merchant_lat_r4}:{merchant_lng_r4}
   ※ expires_at은 Unix timestamp (정수, 초 단위)
+  ※ merchant_lat_r4, merchant_lng_r4: 소수점 4자리 고정 문자열 (예: "36.3504", "127.3845")
+     → toFixed(4) 적용. float 직렬화 불일치 방지 목적.
 
 서명 키: 환경변수 HMAC_SECRET (256비트 이상 랜덤 문자열)
 
@@ -105,20 +118,27 @@ QR 페이로드: {payment_id}:{hmac_signature}
   ※ hmac_signature는 hex 인코딩
 
 QR 발급 흐름:
-  1. 상인 → POST /api/payments/request (amount)
-  2. 서버: 동일 merchant_id의 status='pending' 행을 'expired'로 일괄 업데이트
-  3. 서버: payment_request 행 생성 (nonce = UUID v4, expires_at = now()+60s)
-  4. 서버: HMAC 계산 후 저장
-  5. 응답: { payment_id, hmac_signature, expires_at, qr_payload }
+  1. 상인 → 브라우저 Geolocation API로 위치 동의 및 좌표 획득
+     (navigator.geolocation.getCurrentPosition — 동의 거부 시 QR 발급 불가)
+  2. 상인 → POST /api/payments/request (amount, merchant_lat, merchant_lng)
+  3. 서버: 동일 merchant_id의 status='pending' 행을 'expired'로 일괄 업데이트
+  4. 서버: payment_request 행 생성 (nonce = UUID v4, expires_at = now()+60s,
+           merchant_lat, merchant_lng 저장)
+  5. 서버: HMAC 계산 후 저장 (위치 포함)
+  6. 응답: { payment_id, hmac_signature, expires_at, qr_payload }
 
 QR 검증 흐름 (POST /api/payments/verify):
-  1. 소비자 → qr_payload 전송
-  2. payment_id로 payment_request 조회 — 없으면 INVALID_QR
-  3. status = 'pending' 확인 — 아니면 REPLAY_QR (completed) 또는 INVALID_QR
-  4. expires_at > now() 확인 — 초과 시 'expired' 처리 후 INVALID_QR
-  5. HMAC 재계산 후 hmac_signature 비교 — 불일치 시 INVALID_QR
-  6. 소비자 balance >= amount 확인 — 부족 시 400
-  7. 트랜잭션:
+  1. 소비자 → 브라우저 Geolocation API로 위치 동의 및 좌표 획득
+     (동의 거부 시 결제 불가)
+  2. 소비자 → { qr_payload, consumer_lat, consumer_lng } 전송
+  3. payment_id로 payment_request 조회 — 없으면 INVALID_QR
+  4. status = 'pending' 확인 — 아니면 REPLAY_QR (completed) 또는 INVALID_QR
+  5. expires_at > now() 확인 — 초과 시 'expired' 처리 후 INVALID_QR
+  6. HMAC 재계산 후 hmac_signature 비교 — 불일치 시 INVALID_QR
+  7. Haversine 거리 계산 (상인 위치 vs 소비자 위치)
+     거리 > MAX_DISTANCE_METERS → LOCATION_MISMATCH 이벤트 + 400 반환
+  8. 소비자 balance >= amount 확인 — 부족 시 400
+  9. 트랜잭션:
        consumer.balance -= amount
        merchant.balance += amount
        payment_request.status = 'completed'
@@ -172,6 +192,118 @@ Rate Limit (Redis):
                + security_events 삽입 (CHAIN_BROKEN, detail.transaction_id)
   4. 전체 일치 시 → { valid: true, count: N }
 
+4.5 위치 기반 결제 검증
+─────────────────────────────────────────────────────
+목적: QR을 물리적으로 해당 매장에서만 사용할 수 있도록 강제.
+      원격지에서 QR 페이로드를 탈취·재전송하는 공격을 차단.
+
+거리 계산:
+  알고리즘: Haversine formula (구면 삼각법)
+  구현 위치: lib/haversine.js
+  반환값: 미터 단위 거리 (DOUBLE PRECISION)
+
+  공식:
+    a = sin²(Δlat/2) + cos(lat1)·cos(lat2)·sin²(Δlng/2)
+    distance = 2·R·arcsin(√a)    [R = 6371000 m]
+
+허용 반경: MAX_DISTANCE_METERS (환경변수, 기본값 100)
+  → 거리 > MAX_DISTANCE_METERS 이면 결제 거부
+
+LOCATION_MISMATCH 이벤트 detail:
+  {
+    "payment_id": "<UUID>",
+    "merchant_lat": 36.3504,
+    "merchant_lng": 127.3845,
+    "consumer_lat": 37.5665,
+    "consumer_lng": 126.9780,
+    "distance_m": 148523.4,
+    "max_allowed_m": 100,
+    "message": "결제 위치가 상점과 너무 멀리 떨어져 있습니다 (148523m)"
+  }
+
+위치 동의 흐름 (클라이언트):
+  상인 페이지:
+    1. '금액 입력 → QR 생성' 버튼 클릭 시 위치 동의 요청
+    2. 동의 → 좌표 획득 → POST /api/payments/request body에 포함
+    3. 거부 → "위치 정보 동의가 필요합니다" 안내, QR 생성 버튼 비활성화
+
+  소비자 페이지:
+    1. 'QR 스캔 → 결제' 화면 진입 시 위치 동의 요청
+    2. 동의 → 좌표 획득 후 대기 (스캔 시 함께 전송)
+    3. 거부 → "위치 정보 동의가 필요합니다" 안내, 결제 진행 불가
+
+위치 정보 보존 정책:
+  - payment_requests.merchant_lat/lng: 검증 목적으로 영구 보존
+  - 소비자 좌표(consumer_lat/lng): 서버 메모리에서만 사용, DB에 저장하지 않음
+    (LOCATION_MISMATCH 이벤트 detail.consumer_lat/lng는 보안 감사 목적으로만 기록)
+
+4.6 AI 기반 이상 행동 분석
+─────────────────────────────────────────────────────
+원칙: 보안 차단 판단은 기존 결정론적 룰이 수행한다.
+      AI는 패턴 요약·자연어 설명·차단 권고 생성에만 사용한다.
+      AI 출력이 직접 차단을 실행하지 않는다. 최종 차단은 관리자가 수행한다.
+
+런타임: Ollama (로컬 HTTP 서버, http://localhost:11434)
+모델: 환경변수 OLLAMA_MODEL (기본: gemma4)
+  권장 태그:
+    gemma4      4B — RAM 8GB 이상, 이 프로젝트 기본값
+    gemma4:2b   2B — RAM 4GB 이상, 저사양 노트북용
+  설치: ollama pull gemma4   (상세 절차: gemma.txt 참고)
+구현 위치: lib/localAI.js (Ollama fetch 래퍼), services/aiAnalyzer.js (분석 로직)
+
+분석 트리거:
+  자동: AI_ANALYSIS_INTERVAL_MINUTES 주기로 백그라운드 실행 (setInterval)
+  수동: POST /api/security/ai-analyze (admin 전용, 즉시 실행)
+
+분석 대상 선정 (services/aiAnalyzer.js):
+  최근 AI_ANALYSIS_INTERVAL_MINUTES 내에 다음 조건 중 하나를 만족하는 user_id:
+    조건 A (단기 연속): security_events에서 동일 user_id의 비정상 이벤트
+                        (INVALID_QR | REPLAY_QR | LOCATION_MISMATCH) 가 5분 내 3회 이상
+    조건 B (장기 분산): 동일 user_id의 비정상 이벤트가 1시간 내 총 5회 이상
+                        (단, 각 이벤트 간격이 2분 이상 — 의도적 회피 패턴)
+
+  이미 is_blocked = TRUE인 사용자는 분석 제외
+
+LLM 입력 컨텍스트:
+  - 해당 user_id의 최근 24시간 security_events (event_type, created_at, detail) 전체
+  - 해당 user_id의 최근 24시간 transactions (amount, status, created_at) 전체
+  - 현재 시각 (ISO 8601)
+  - 시스템 프롬프트: 한국어로 답변, JSON 형식 강제
+
+LLM 출력 스키마 (JSON):
+  {
+    "risk_level": "HIGH" | "MEDIUM" | "LOW",
+    "patterns": ["짧은 시간 내 QR 위조 반복 시도", ...],   // 감지된 패턴 목록
+    "reason_ko": "해당 사용자는 10분 내 위조 QR을 4회 시도하였으며...",  // 관리자용 설명
+    "block_recommendation": true | false,
+    "user_message_ko": "비정상적인 결제 시도가 감지되어 계정이 제한되었습니다."
+                        // 차단 시 유저에게 노출할 자연어 메시지
+  }
+
+  파싱 실패 시: 해당 분석 결과 폐기, security_events에 기록하지 않음
+
+AI_ALERT 이벤트 detail:
+  {
+    "analyzed_user_id": "<UUID>",
+    "risk_level": "HIGH",
+    "patterns": [...],
+    "reason_ko": "...",
+    "block_recommendation": true,
+    "model": "qwen2.5:1.5b"
+  }
+
+차단 실행 흐름:
+  1. AI 분석 완료 → AI_ALERT 이벤트 삽입 (block_recommendation 여부 무관)
+  2. 대시보드: AI_ALERT 카드 표시 (reason_ko + "차단" 버튼)
+  3. 관리자가 "차단" 클릭 → POST /api/admin/users/:id/block
+  4. 서버: users.is_blocked = TRUE, users.block_reason = user_message_ko,
+           users.blocked_at = now()
+
+차단된 사용자 처리:
+  로그인 시도: 403 + { code: 'USER_BLOCKED', message: users.block_reason }
+  결제 시도:   403 + { code: 'USER_BLOCKED', message: users.block_reason }
+  ※ block_reason은 AI가 생성한 한국어 자연어 문장을 그대로 반환
+
 ================================================================================
 5. API 엔드포인트
 ================================================================================
@@ -190,15 +322,23 @@ POST    /api/auth/login               없음    없음         로그인 → JWT
 POST    /api/auth/logout              필요    없음         로그아웃
 
 POST    /api/payments/request         필요    merchant     QR 발급
+                                                           body: { amount, merchant_lat, merchant_lng }
 POST    /api/payments/verify          필요    consumer     QR 스캔 → 결제
+                                                           body: { qr_payload, consumer_lat, consumer_lng }
 GET     /api/payments/history         필요    없음         본인 거래 내역
 
 GET     /api/security/events          필요    admin        이벤트 피드
                                                            ?limit=50&before=<id>
 GET     /api/security/chain-verify    필요    admin        해시 체인 검증
+POST    /api/security/ai-analyze      필요    admin        AI 분석 즉시 실행
+                                                           body: { user_id? }  [생략 시 전체 대상 분석]
 
 GET     /api/dashboard/stats          필요    admin        이벤트 타입별 집계
                                                            ?minutes=10
+GET     /api/dashboard/ai-alerts      필요    admin        AI_ALERT 목록 (미처리 권고)
+
+POST    /api/admin/users/:id/block    필요    admin        사용자 차단 (AI 권고 실행)
+POST    /api/admin/users/:id/unblock  필요    admin        사용자 차단 해제
 
 GET     /api/health                   없음    없음         서버·DB 상태 확인
 
@@ -229,10 +369,14 @@ HTTP 상태코드:
   RATE_LIMITED          요청 한도 초과
   INVALID_QR            QR 서명 불일치 또는 만료
   REPLAY_QR             이미 사용된 QR
+  LOCATION_MISMATCH     소비자 위치가 상점 위치와 허용 반경 초과
+  LOCATION_REQUIRED     위치 정보 미전송 (lat/lng 누락)
   INSUFFICIENT_BALANCE  잔액 부족
   CHAIN_INVALID         해시 체인 불일치
   UNAUTHORIZED          인증 토큰 없음 또는 무효
   FORBIDDEN             역할 권한 없음
+  USER_BLOCKED          AI 권고로 관리자가 차단한 계정 (message = AI 생성 자연어 사유)
+  AI_UNAVAILABLE        Ollama 서버 미응답 (분석 스킵, 서비스 중단 없음)
 
 ================================================================================
 7. 실시간 이벤트 피드 (Server-Sent Events)
@@ -254,7 +398,7 @@ Content-Type: text/event-stream
 8.1 [필수] 실시간 이벤트 피드
   표시 형식: [HH:MM:SS] {dot} {event_type}  {ip}  →  {detail.message}
   색상 규칙:
-    빨간 dot: BRUTE_FORCE, INVALID_QR, REPLAY_QR, CHAIN_BROKEN
+    빨간 dot: BRUTE_FORCE, INVALID_QR, REPLAY_QR, CHAIN_BROKEN, LOCATION_MISMATCH
     노란 dot: SQLI_BLOCKED
     초록 dot: PAYMENT_OK
   최대 표시: 최신 100건 (오래된 항목 하단 제거)
@@ -266,14 +410,33 @@ Content-Type: text/event-stream
   색상: event_type별 고정 색상
   갱신: 10초마다 GET /api/dashboard/stats 폴링
 
-8.3 [선택] 결제 성공/실패 비율
+8.3 [필수] AI 차단 권고 패널
+  위치: 대시보드 우측 사이드바
+  표시 조건: AI_ALERT 이벤트 중 block_recommendation = true 이고 해당 user가 미차단 상태
+  카드 형식:
+    ┌─────────────────────────────────────────┐
+    │ ⚠ AI 차단 권고   위험도: HIGH           │
+    │ 사용자: user@email.com                  │
+    │ 감지 패턴: 단기 반복 QR 위조, 위치 조작 │
+    │ 사유: 해당 사용자는 10분 내 위조 QR을…  │
+    │              [차단]  [무시]              │
+    └─────────────────────────────────────────┘
+  "차단" 클릭: POST /api/admin/users/:id/block → 카드 제거 + 이벤트 피드에 기록
+  "무시" 클릭: 카드 제거 (DB 변경 없음)
+  실시간 갱신: SSE 이벤트 피드에서 AI_ALERT 수신 시 패널 자동 추가
+
+8.4 [선택] 결제 성공/실패 비율
   라이브러리: Chart.js (도넛)
   항목: PAYMENT_OK vs (INVALID_QR + REPLAY_QR)
 
-8.4 [선택] 대전 시장 지도 + 결제 히트맵
+8.5 [선택] 실시간 위치 지도
   라이브러리: Leaflet.js
-  데이터: 공공데이터 전통시장 위경도
-  이벤트: PAYMENT_OK 발생 시 해당 merchant 위치 마커 flash (CSS animation)
+  데이터 소스: payment_requests.merchant_lat/lng (실제 상인 GPS 좌표)
+  마커 종류:
+    초록 마커: PAYMENT_OK — 정상 결제 발생 위치 (flash 애니메이션)
+    빨간 마커: LOCATION_MISMATCH — 위치 불일치 시도 발생 위치
+  LOCATION_MISMATCH 시: 상인 위치(초록 핀)와 소비자 위치(빨간 핀)를 선으로 연결하여
+    실제 거리 차이를 시각화
   우선순위 낮음 — 시간 부족 시 스킵
 
 ================================================================================
@@ -308,7 +471,30 @@ Content-Type: text/event-stream
     공격: 발급 60초 후 스캔
     기대: 400 INVALID_QR (expired)
 
-9.4 해시 체인 변조
+9.4 위치 불일치 (Location Mismatch)
+  준비: 상인 A가 대전 시장에서 QR 발급 (정상 위치)
+  공격: 소비자가 원격지(서울 등)에서 QR 페이로드를 탈취해 결제 시도
+        → 개발 시연 시: 소비자 위치를 요청 body에서 임의 좌표로 조작
+  기대 결과:
+    - Haversine 거리 계산 → 허용 반경(100m) 초과
+    - HTTP 400 LOCATION_MISMATCH 반환
+    - security_events에 LOCATION_MISMATCH 기록 (detail에 거리·좌표 포함)
+    - 대시보드 이벤트 피드에 빨간 dot 실시간 출력
+    - (선택) 지도에 상인-소비자 위치 연결선 표시
+
+9.5 AI 이상 행동 탐지 + 차단
+  준비: 동일 소비자 계정으로 위조 QR 스캔 3~4회 반복 (9.3 시나리오 연속 실행)
+  분석: POST /api/security/ai-analyze 호출 (또는 주기 분석 대기)
+  기대 결과:
+    - Ollama LLM이 최근 security_events 패턴 분석
+    - 대시보드 AI 권고 패널에 카드 출력:
+        위험도: HIGH
+        감지 패턴: "단기 반복 QR 위조 시도"
+        사유: "해당 사용자는 8분 내 위조 QR을 4회 시도하였으며 서비스 방해 의도가 명확합니다."
+    - 관리자가 "차단" 클릭 → POST /api/admin/users/:id/block
+    - 해당 소비자가 다시 결제 시도 → 403 USER_BLOCKED + AI 생성 한국어 메시지 반환
+
+9.6 해시 체인 변조
   준비: Supabase 대시보드 열기
   공격: transactions 테이블에서 임의 행 amount 직접 UPDATE (예: 5000 → 50000)
   기대:
@@ -330,9 +516,19 @@ SUPABASE_SERVICE_ROLE_KEY=<service role key>   # 서버 전용. 클라이언트 
 
 # 보안
 HMAC_SECRET=<256비트 이상 랜덤 문자열>         # QR 서명 키
+MAX_DISTANCE_METERS=100                         # 위치 검증 허용 반경 (미터, 기본 100)
 
 # Redis (Rate Limiting)
 REDIS_URL=redis://localhost:6379
+
+# 로컬 AI (Ollama)
+OLLAMA_URL=http://localhost:11434               # Ollama 서버 주소 (Docker: http://ollama:11434)
+OLLAMA_MODEL=gemma4                            # 기본: gemma4 (4B). 저사양 시 gemma4:2b
+AI_ANALYSIS_INTERVAL_MINUTES=5                 # 자동 분석 주기 (분)
+GEMMA_API_KEY=                                 # Google AI Studio API 키 (서버 배포 대안)
+GEMMA_API_URL=                                 # Google AI Studio 엔드포인트 (전략 C 시 설정)
+DISABLE_AI=false                               # true 시 AI 분석 전체 비활성화 (긴급 폴백)
+# 배포 전략 상세: gemma.txt 섹션 7 참고
 
 ================================================================================
 11. 폴더 구조
@@ -358,7 +554,11 @@ GRIP/
 │   ├── supabase.js                 # Supabase 클라이언트 싱글톤
 │   ├── redis.js                    # Redis 클라이언트 싱글톤
 │   ├── hmac.js                     # HMAC-SHA256 서명/검증
-│   └── hashChain.js                # SHA256 체인 계산
+│   ├── hashChain.js                # SHA256 체인 계산
+│   ├── haversine.js                # Haversine 거리 계산 (미터 반환)
+│   └── localAI.js                  # Ollama fetch 래퍼 (ask(prompt) → string)
+├── services/
+│   └── aiAnalyzer.js               # 대상 선정 → 컨텍스트 구성 → LLM 호출 → 결과 저장
 ├── public/
 │   ├── css/
 │   │   └── style.css
@@ -398,6 +598,13 @@ GRIP/
   @supabase/supabase-js  Supabase 클라이언트
   ioredis             Redis 클라이언트
   crypto (Node 내장)  SHA256 / HMAC
+  fetch (Node 내장)   Ollama REST API 호출 (npm 패키지 불필요)
+
+로컬 AI:
+  Ollama              로컬 LLM 런타임 (별도 설치, npm 패키지 아님)
+                      설치: https://ollama.com/download
+                      모델: ollama pull gemma4
+                      상세 절차: gemma.txt 참고
 
 클라이언트:
   Chart.js            막대 차트 + 도넛 차트

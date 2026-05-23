@@ -293,7 +293,11 @@ GRIP/
 │   ├── supabase.js               # Supabase 클라이언트 싱글톤
 │   ├── redis.js                  # Redis 클라이언트 싱글톤
 │   ├── hmac.js                   # HMAC-SHA256 서명/검증
-│   └── hashChain.js              # SHA256 체인 계산
+│   ├── hashChain.js              # SHA256 체인 계산
+│   ├── haversine.js              # Haversine 거리 계산 (미터 반환)
+│   └── localAI.js                # Ollama fetch 래퍼
+├── services/
+│   └── aiAnalyzer.js             # 대상 선정 → 컨텍스트 구성 → LLM 호출 → 결과 저장
 ├── public/
 │   ├── css/style.css
 │   ├── js/
@@ -334,6 +338,8 @@ GRIP/
 - 차트: Chart.js (CDN)
 - 지도: Leaflet.js (CDN, 선택 구현)
 - 암호: Node.js 내장 `crypto` 모듈 (SHA256, HMAC-SHA256)
+- 로컬 AI: Ollama + Gemma 4 (별도 설치, npm 패키지 없음, Node 내장 fetch로 호출)
+  설치·사용법: gemma.txt 참고
 - 외부 API: 없음 (선택 구현인 지도는 공공데이터 정적 좌표 사용)
 
 ---
@@ -376,7 +382,15 @@ SUPABASE_URL=
 SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=   # 서버 전용 — 클라이언트 노출 금지
 HMAC_SECRET=                 # QR 서명 키 (256비트 이상 랜덤)
+MAX_DISTANCE_METERS=100      # 위치 검증 허용 반경 (미터)
 REDIS_URL=redis://localhost:6379
+OLLAMA_URL=http://localhost:11434   # Docker 배포 시 http://ollama:11434
+OLLAMA_MODEL=gemma4                # 기본: gemma4 (4B). 저사양 시 gemma4:2b
+AI_ANALYSIS_INTERVAL_MINUTES=5
+GEMMA_API_KEY=                     # Google AI Studio 키 (서버 배포 대안, 전략 C)
+GEMMA_API_URL=                     # Google AI Studio 엔드포인트
+DISABLE_AI=false                   # true 시 AI 기능 전체 비활성화 (긴급 폴백)
+# 배포 전략 선택 기준: gemma.txt 섹션 7 참고
 ```
 
 ---
@@ -396,14 +410,17 @@ npm run test:frontend   # 프론트엔드 테스트
 
 ## Core Features
 
-1. **동적 서명 QR 결제** — 상인이 금액 입력 → HMAC-SHA256 서명 QR 발급 → 소비자 스캔 → 서버 검증 후 포인트 이체
+1. **동적 서명 QR 결제** — 상인 GPS 위치 포함 HMAC-SHA256 서명 QR 발급 → 소비자 스캔 → 서버 검증 후 포인트 이체
 2. **QR 위변조 탐지** — 서명 불일치(INVALID_QR) + nonce 재사용(REPLAY_QR) + 60초 만료 차단
-3. **SQL Injection 방어** — 로그인 요청의 SQL 메타 문자 탐지 (SQLI_BLOCKED 이벤트)
-4. **Brute Force 방어** — Redis rate limit (IP당 분당 10회) + 5회 실패 시 30분 계정 잠금
-5. **거래 해시 체인** — SHA256 체인으로 거래 기록 무결성 보장, 검증 API로 변조 탐지
-6. **보안 이벤트 대시보드** — 실시간 이벤트 피드(SSE) + Chart.js 막대 차트
+3. **위치 기반 결제 검증** — 상인·소비자 Geolocation 동의 → Haversine 거리 계산 → 100m 초과 시 LOCATION_MISMATCH 차단
+4. **SQL Injection 방어** — 로그인 요청의 SQL 메타 문자 탐지 (SQLI_BLOCKED 이벤트)
+5. **Brute Force 방어** — Redis rate limit (IP당 분당 10회) + 5회 실패 시 30분 계정 잠금
+6. **거래 해시 체인** — SHA256 체인으로 거래 기록 무결성 보장, 검증 API로 변조 탐지
+7. **AI 이상 행동 탐지** — Ollama 로컬 LLM이 트랜잭션/이벤트 기록 분석 → 관리자에게 차단 권고 + 자연어 차단 사유 생성
+8. **보안 이벤트 대시보드** — 실시간 이벤트 피드(SSE) + AI 차단 권고 패널 + Chart.js 막대 차트
 
-MVP 범위 밖: Leaflet 지도, 도넛 차트 (시간 여유 시 추가)
+AI 원칙: 보안 차단 판단은 기존 결정론적 룰 유지. AI는 패턴 요약·자연어 설명·권고 생성에만 사용.
+MVP 범위 밖: Leaflet 지도 (위치 불일치 시각화), 도넛 차트 (시간 여유 시 추가)
 
 ---
 
