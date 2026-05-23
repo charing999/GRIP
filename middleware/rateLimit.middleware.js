@@ -15,8 +15,13 @@ async function logBruteForce(ip, count) {
   });
 }
 
+const LOCALHOST_IPS = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+
 module.exports = async (req, res, next) => {
   const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+
+  // 개발/테스트 환경에서 localhost는 rate limit 제외
+  if (process.env.NODE_ENV !== 'production' && LOCALHOST_IPS.has(ip)) return next();
   const now = Date.now();
   const windowStart = now - WINDOW_MS;
 

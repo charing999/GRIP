@@ -44,7 +44,8 @@ async function register(req, res) {
 
   if (authError) {
     const isdup = authError.message?.toLowerCase().includes('already');
-    return fail(res, 400, 'REGISTER_FAILED', isdup ? '이미 사용 중인 이메일입니다.' : '회원가입에 실패하였습니다.');
+    if (isdup) return fail(res, 400, 'EMAIL_EXISTS', '이미 사용 중인 이메일입니다.');
+    return fail(res, 500, 'REGISTER_FAILED', '회원가입에 실패하였습니다.');
   }
 
   const authUser = authData?.user;

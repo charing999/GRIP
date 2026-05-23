@@ -67,11 +67,15 @@ async function createTestUser(role = 'consumer', suffix = '') {
     await admin.auth.admin.deleteUser(existing.id).catch(() => {});
   }
 
-  const { data: authData } = await admin.auth.admin.createUser({
+  const { data: authData, error: authError } = await admin.auth.admin.createUser({
     email,
     password: 'Test1234!@',
     email_confirm: true,
   });
+
+  if (authError || !authData?.user) {
+    throw new Error(`Auth user creation failed for ${email}: ${authError?.message}`);
+  }
 
   const userId = authData.user.id;
   testUserIds.push(userId);
@@ -559,11 +563,13 @@ describe('8. 기본값(DEFAULT) 확인', () => {
     const email = `${TEST_PREFIX}default_balance@test.com`;
     testEmails.push(email);
 
-    const { data: authData } = await admin.auth.admin.createUser({
+    const { data: authData, error: authError } = await admin.auth.admin.createUser({
       email,
       password: 'Test1234!@',
       email_confirm: true,
     });
+    assert.equal(authError, null, `auth 사용자 생성 실패: ${authError?.message}`);
+    assert.ok(authData?.user, 'auth 사용자 생성 결과가 없습니다');
     const userId = authData.user.id;
     testUserIds.push(userId);
 

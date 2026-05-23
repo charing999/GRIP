@@ -9,7 +9,12 @@
     "test": "node --test tests/schema/schema.test.js tests/backend/lib.test.js tests/backend/health.test.js tests/backend/auth.test.js tests/backend/payments.test.js tests/backend/security.test.js tests/backend/dashboard.test.js tests/backend/admin.test.js tests/frontend/api.test.js",
     "test:schema": "node --test tests/schema/schema.test.js",
     "test:backend": "node --test tests/backend/lib.test.js tests/backend/health.test.js tests/backend/auth.test.js tests/backend/payments.test.js tests/backend/security.test.js tests/backend/dashboard.test.js tests/backend/admin.test.js",
-    "test:frontend": "node --test tests/frontend/api.test.js"
+    "test:frontend": "node --test tests/frontend/api.test.js",
+    "test:ai": "node --test tests/backend/ai.test.js",
+    "test:save": "node scripts/save-test.js test test-output.txt",
+    "test:schema:save": "node scripts/save-test.js test:schema test_schema-output.txt",
+    "test:backend:save": "node scripts/save-test.js test:backend test_backend-output.txt",
+    "test:frontend:save": "node scripts/save-test.js test:frontend test_frontend-output.txt"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",

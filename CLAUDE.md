@@ -11,7 +11,7 @@
 ## Current Phase
 
 ```
-PHASE=2_BACKEND
+PHASE=3_FRONTEND
 ```
 
 > 페이즈 변경 시 위 값만 수정한다.  
@@ -59,7 +59,7 @@ TEST 페이즈를 통과하지 못하면 이전 페이즈로 돌아간다.
 
 허용:
 
-- `supabase/migrations/` 파일 작성 및 실행
+- `db/schema.sql` 작성 (Supabase 대시보드 SQL Editor에서 실행)
 - 테이블, 컬럼, 관계, 인덱스 설계
 - RLS(Row Level Security) 정책 설정
 - Supabase 시드 데이터 작성
@@ -70,7 +70,7 @@ TEST 페이즈를 통과하지 못하면 이전 페이즈로 돌아간다.
 - HTML/CSS 작성
 - 프론트엔드 파일 수정
 
-완료 기준: Supabase 대시보드에서 모든 테이블과 RLS가 확인된다.
+완료 기준: `db/schema.sql`을 Supabase SQL Editor에서 실행 후 대시보드에서 모든 테이블과 RLS가 확인된다.
 
 ---
 

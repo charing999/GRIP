@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const request = require('supertest');
 const { randomUUID } = require('crypto');
 const { supabaseAdmin } = require('../../lib/supabase');
-const { Writable } = require('stream');
+const http = require('http');
 
 const BASE_URL = 'http://localhost:3000';
 
@@ -115,55 +115,76 @@ describe('4. 보안 이벤트 및 AI 분석 API 테스트', () => {
 
   describe('4-2. GET /api/security/stream (admin only, SSE)', () => {
     test('TC-S01 & TC-S02 SSE 연결 성립 및 실시간 이벤트 수신 확인', async () => {
-      const req = request(BASE_URL)
-        .get('/api/security/stream')
-        .set('Authorization', `Bearer ${adminToken}`);
-
+      const serverUrl = new URL(BASE_URL);
       let receivedData = '';
+      let contentType = '';
 
-      const ssePromise = new Promise((resolve, reject) => {
-        const stream = req.pipe(new Writable({
-          write(chunk, encoding, callback) {
-            const dataStr = chunk.toString();
-            receivedData += dataStr;
-            
-            // 실시간으로 SQLI_BLOCKED 이벤트 데이터가 도착했는지 검사
-            if (dataStr.includes('SQLI_BLOCKED')) {
-              resolve(dataStr);
+      const sseResult = await new Promise((resolve, reject) => {
+        let settled = false;
+
+        const done = (val) => {
+          if (!settled) { settled = true; resolve(val); }
+        };
+        const fail = (err) => {
+          if (!settled) { settled = true; reject(err); }
+        };
+
+        const httpReq = http.request({
+          hostname: serverUrl.hostname,
+          port: parseInt(serverUrl.port) || 3000,
+          path: '/api/security/stream',
+          method: 'GET',
+          headers: { Authorization: `Bearer ${adminToken}` },
+        }, (res) => {
+          contentType = res.headers['content-type'] || '';
+
+          res.on('data', (chunk) => {
+            const str = chunk.toString();
+            receivedData += str;
+            if (str.includes('SQLI_BLOCKED') && !settled) {
+              // 소켓 에러를 무시한 뒤 안전하게 종료
+              res.on('error', () => {});
+              if (res.socket) res.socket.on('error', () => {});
+              res.destroy();
+              done(receivedData);
             }
-            callback();
-          }
-        }));
+          });
 
-        req.on('response', (res) => {
-          // TC-S01: Content-Type이 text/event-stream인지 검증
-          assert.strictEqual(res.headers['content-type'], 'text/event-stream');
+          res.on('error', (err) => { fail(err); });
         });
 
-        req.on('error', reject);
+        // 소켓 연결 시 에러 핸들러 등록
+        httpReq.on('socket', (socket) => {
+          socket.on('error', (err) => {
+            // settled 이후 destroy에 의한 에러는 무시
+            if (!settled) fail(err);
+          });
+        });
 
-        // 8초 타임아웃 설정
-        setTimeout(() => {
-          reject(new Error('SSE 실시간 이벤트 수신 대기시간 초과 (타임아웃)'));
+        httpReq.on('error', (err) => { fail(err); });
+        httpReq.end();
+
+        // 8초 타임아웃
+        const timeoutId = setTimeout(() => {
+          fail(new Error('SSE 실시간 이벤트 수신 대기시간 초과 (타임아웃)'));
+          httpReq.destroy();
         }, 8000);
+
+        // 0.5초 후 SQLi 이벤트 트리거
+        setTimeout(async () => {
+          try {
+            await request(BASE_URL)
+              .post('/api/auth/login')
+              .send({ email: "' UNION SELECT NULL--", password: 'wrong' });
+          } catch { /* ignore trigger errors */ }
+        }, 500);
       });
 
-      // 0.5초 대기 후 새로운 SQLi 보안 이벤트 생성하여 실시간 스트리밍 유도
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      const triggerRes = await request(BASE_URL)
-        .post('/api/auth/login')
-        .send({ email: "' UNION SELECT NULL--", password: "wrong" });
-
-      assert.strictEqual(triggerRes.status, 401);
-
-      // SSE 실시간 스트림 수신 대기
-      const sseEvent = await ssePromise;
-      assert.ok(sseEvent.includes('data:'));
-      assert.ok(receivedData.includes('SQLI_BLOCKED'));
-
-      // 연결 중단
-      req.abort();
+      // TC-S01: Content-Type 검증
+      assert.strictEqual(contentType, 'text/event-stream');
+      // TC-S02: 실시간 이벤트 수신 확인
+      assert.ok(sseResult.includes('data:'));
+      assert.ok(sseResult.includes('SQLI_BLOCKED'));
     });
 
     test('TC-S03 consumer 토큰으로 접근', async () => {

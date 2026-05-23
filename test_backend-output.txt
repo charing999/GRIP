@@ -1,0 +1,694 @@
+
+> grip@1.0.0 test:backend
+> node --test tests/backend/lib.test.js tests/backend/health.test.js tests/backend/auth.test.js tests/backend/payments.test.js tests/backend/security.test.js tests/backend/dashboard.test.js tests/backend/admin.test.js
+
+TAP version 13
+# Subtest: 6. 관리자 API 테스트
+    # Subtest: 6-1. POST /api/admin/users/:id/block (admin only)
+        # Subtest: TC-BK01 정상 차단
+        ok 1 - TC-BK01 정상 차단
+          ---
+          duration_ms: 729.7863
+          type: 'test'
+          ...
+        # Subtest: TC-BK03 이미 차단된 user 재차단
+        ok 2 - TC-BK03 이미 차단된 user 재차단
+          ---
+          duration_ms: 281.0731
+          type: 'test'
+          ...
+        # Subtest: TC-BK01 정상 차단 해제 후 TC-BK02 확인 (reason 없이 차단)
+        ok 3 - TC-BK01 정상 차단 해제 후 TC-BK02 확인 (reason 없이 차단)
+          ---
+          duration_ms: 554.3945
+          type: 'test'
+          ...
+        # Subtest: TC-BK04 존재하지 않는 user_id
+        ok 4 - TC-BK04 존재하지 않는 user_id
+          ---
+          duration_ms: 275.2732
+          type: 'test'
+          ...
+        # Subtest: TC-BK05 consumer 토큰으로 접근
+        ok 5 - TC-BK05 consumer 토큰으로 접근
+          ---
+          duration_ms: 189.8075
+          type: 'test'
+          ...
+        # Subtest: TC-BK06 인증 없이 접근
+        ok 6 - TC-BK06 인증 없이 접근
+          ---
+          duration_ms: 2.9323
+          type: 'test'
+          ...
+        1..6
+    ok 1 - 6-1. POST /api/admin/users/:id/block (admin only)
+      ---
+      duration_ms: 2034.0602
+      type: 'suite'
+      ...
+    # Subtest: 6-2. POST /api/admin/users/:id/unblock (admin only)
+        # Subtest: TC-UB01 정상 차단 해제
+        ok 1 - TC-UB01 정상 차단 해제
+          ---
+          duration_ms: 457.0784
+          type: 'test'
+          ...
+        # Subtest: TC-UB02 차단되지 않은 user 해제 시도
+        ok 2 - TC-UB02 차단되지 않은 user 해제 시도
+          ---
+          duration_ms: 277.5364
+          type: 'test'
+          ...
+        # Subtest: TC-UB03 존재하지 않는 user_id
+        ok 3 - TC-UB03 존재하지 않는 user_id
+          ---
+          duration_ms: 272.3943
+          type: 'test'
+          ...
+        1..3
+    ok 2 - 6-2. POST /api/admin/users/:id/unblock (admin only)
+      ---
+      duration_ms: 1007.4285
+      type: 'suite'
+      ...
+    1..2
+ok 1 - 6. 관리자 API 테스트
+  ---
+  duration_ms: 4887.9286
+  type: 'suite'
+  ...
+# Subtest: 2-1. POST /api/auth/register
+    # Subtest: TC-R01 정상 회원가입 (consumer)
+    ok 1 - TC-R01 정상 회원가입 (consumer)
+      ---
+      duration_ms: 673.9606
+      type: 'test'
+      ...
+    # Subtest: TC-R02 정상 회원가입 (merchant)
+    ok 2 - TC-R02 정상 회원가입 (merchant)
+      ---
+      duration_ms: 423.6642
+      type: 'test'
+      ...
+    # Subtest: TC-R03 정상 회원가입 (admin)
+    ok 3 - TC-R03 정상 회원가입 (admin)
+      ---
+      duration_ms: 413.933
+      type: 'test'
+      ...
+    # Subtest: TC-R04 중복 이메일
+    ok 4 - TC-R04 중복 이메일
+      ---
+      duration_ms: 93.8923
+      type: 'test'
+      ...
+    # Subtest: TC-R05 비밀번호 7자 (미달)
+    ok 5 - TC-R05 비밀번호 7자 (미달)
+      ---
+      duration_ms: 3.8843
+      type: 'test'
+      ...
+    # Subtest: TC-R06 유효하지 않은 이메일 형식
+    ok 6 - TC-R06 유효하지 않은 이메일 형식
+      ---
+      duration_ms: 2.5072
+      type: 'test'
+      ...
+    # Subtest: TC-R07 유효하지 않은 role
+    ok 7 - TC-R07 유효하지 않은 role
+      ---
+      duration_ms: 2.2292
+      type: 'test'
+      ...
+    # Subtest: TC-R08 필수 필드 누락 (email 없음)
+    ok 8 - TC-R08 필수 필드 누락 (email 없음)
+      ---
+      duration_ms: 2.8093
+      type: 'test'
+      ...
+    1..8
+ok 2 - 2-1. POST /api/auth/register
+  ---
+  duration_ms: 1618.2916
+  type: 'suite'
+  ...
+# Subtest: 2-2. POST /api/auth/login
+    # Subtest: TC-L01 정상 로그인
+    ok 1 - TC-L01 정상 로그인
+      ---
+      duration_ms: 377.5062
+      type: 'test'
+      ...
+    # Subtest: TC-L02 잘못된 비밀번호
+    ok 2 - TC-L02 잘못된 비밀번호
+      ---
+      duration_ms: 530.8111
+      type: 'test'
+      ...
+    # Subtest: TC-L03 존재하지 않는 이메일
+    ok 3 - TC-L03 존재하지 않는 이메일
+      ---
+      duration_ms: 95.5988
+      type: 'test'
+      ...
+    # Subtest: TC-L04 SQLi 탐지 — email 필드
+    ok 4 - TC-L04 SQLi 탐지 — email 필드
+      ---
+      duration_ms: 103.8408
+      type: 'test'
+      ...
+    # Subtest: TC-L05 SQLi 탐지 — password 필드
+    ok 5 - TC-L05 SQLi 탐지 — password 필드
+      ---
+      duration_ms: 95.365
+      type: 'test'
+      ...
+    # Subtest: TC-L06 SQLi 탐지 패턴 목록 — '
+    ok 6 - TC-L06 SQLi 탐지 패턴 목록 — '
+      ---
+      duration_ms: 101.7838
+      type: 'test'
+      ...
+    # Subtest: TC-L06 SQLi 탐지 패턴 목록 — "
+    ok 7 - TC-L06 SQLi 탐지 패턴 목록 — "
+      ---
+      duration_ms: 93.6072
+      type: 'test'
+      ...
+    # Subtest: TC-L06 SQLi 탐지 패턴 목록 — ;
+    ok 8 - TC-L06 SQLi 탐지 패턴 목록 — ;
+      ---
+      duration_ms: 91.6272
+      type: 'test'
+      ...
+    # Subtest: TC-L06 SQLi 탐지 패턴 목록 — --
+    ok 9 - TC-L06 SQLi 탐지 패턴 목록 — --
+      ---
+      duration_ms: 94.0434
+      type: 'test'
+      ...
+    # Subtest: TC-L06 SQLi 탐지 패턴 목록 — \#
+    ok 10 - TC-L06 SQLi 탐지 패턴 목록 — \#
+      ---
+      duration_ms: 93.5628
+      type: 'test'
+      ...
+    # Subtest: TC-L06 SQLi 탐지 패턴 목록 — /* */
+    ok 11 - TC-L06 SQLi 탐지 패턴 목록 — /* */
+      ---
+      duration_ms: 90.2813
+      type: 'test'
+      ...
+    # Subtest: TC-L06 SQLi 탐지 패턴 목록 — UNION
+    ok 12 - TC-L06 SQLi 탐지 패턴 목록 — UNION
+      ---
+      duration_ms: 92.9875
+      type: 'test'
+      ...
+    # Subtest: TC-L06 SQLi 탐지 패턴 목록 — SELECT
+    ok 13 - TC-L06 SQLi 탐지 패턴 목록 — SELECT
+      ---
+      duration_ms: 92.2828
+      type: 'test'
+      ...
+    # Subtest: TC-L06 SQLi 탐지 패턴 목록 — DROP
+    ok 14 - TC-L06 SQLi 탐지 패턴 목록 — DROP
+      ---
+      duration_ms: 93.4784
+      type: 'test'
+      ...
+    # Subtest: TC-L06 SQLi 탐지 패턴 목록 — INSERT
+    ok 15 - TC-L06 SQLi 탐지 패턴 목록 — INSERT
+      ---
+      duration_ms: 95.8354
+      type: 'test'
+      ...
+    # Subtest: TC-L06 SQLi 탐지 패턴 목록 — UPDATE
+    ok 16 - TC-L06 SQLi 탐지 패턴 목록 — UPDATE
+      ---
+      duration_ms: 93.6227
+      type: 'test'
+      ...
+    # Subtest: TC-L08 & TC-L09 계정 잠금 및 재접근 확인
+    ok 17 - TC-L08 & TC-L09 계정 잠금 및 재접근 확인
+      ---
+      duration_ms: 2225.7538
+      type: 'test'
+      ...
+    # Subtest: TC-L10 필수 필드 누락
+    ok 18 - TC-L10 필수 필드 누락
+      ---
+      duration_ms: 2.5907
+      type: 'test'
+      ...
+    1..18
+ok 3 - 2-2. POST /api/auth/login
+  ---
+  duration_ms: 4465.8044
+  type: 'suite'
+  ...
+# Subtest: 2-3. POST /api/auth/logout
+    # Subtest: TC-O01 정상 로그아웃
+    ok 1 - TC-O01 정상 로그아웃
+      ---
+      duration_ms: 184.4837
+      type: 'test'
+      ...
+    # Subtest: TC-O02 토큰 없이 로그아웃
+    ok 2 - TC-O02 토큰 없이 로그아웃
+      ---
+      duration_ms: 1.972
+      type: 'test'
+      ...
+    1..2
+ok 4 - 2-3. POST /api/auth/logout
+  ---
+  duration_ms: 186.6018
+  type: 'suite'
+  ...
+# Subtest: 5. 대시보드 API 테스트
+    # Subtest: 5-1. GET /api/dashboard/stats (admin only)
+        # Subtest: TC-DS01 기본 통계 조회
+        ok 1 - TC-DS01 기본 통계 조회
+          ---
+          duration_ms: 337.207
+          type: 'test'
+          ...
+        # Subtest: TC-DS02 minutes 파라미터 적용
+        ok 2 - TC-DS02 minutes 파라미터 적용
+          ---
+          duration_ms: 466.7016
+          type: 'test'
+          ...
+        # Subtest: TC-DS03 이벤트 집계 정확성
+        ok 3 - TC-DS03 이벤트 집계 정확성
+          ---
+          duration_ms: 463.0909
+          type: 'test'
+          ...
+        # Subtest: TC-DS04 consumer 토큰으로 접근
+        ok 4 - TC-DS04 consumer 토큰으로 접근
+          ---
+          duration_ms: 183.5911
+          type: 'test'
+          ...
+        1..4
+    ok 1 - 5-1. GET /api/dashboard/stats (admin only)
+      ---
+      duration_ms: 1451.2909
+      type: 'suite'
+      ...
+    # Subtest: 5-2. GET /api/dashboard/ai-alerts (admin only)
+        # Subtest: TC-DA01 AI 권고 목록 조회
+        ok 1 - TC-DA01 AI 권고 목록 조회
+          ---
+          duration_ms: 273.18
+          type: 'test'
+          ...
+        # Subtest: TC-DA02 차단된 user의 알림 필터링
+        ok 2 - TC-DA02 차단된 user의 알림 필터링
+          ---
+          duration_ms: 1293.0743
+          type: 'test'
+          ...
+        # Subtest: TC-DA03 consumer 토큰으로 접근
+        ok 3 - TC-DA03 consumer 토큰으로 접근
+          ---
+          duration_ms: 176.2403
+          type: 'test'
+          ...
+        1..3
+    ok 2 - 5-2. GET /api/dashboard/ai-alerts (admin only)
+      ---
+      duration_ms: 1743.0947
+      type: 'suite'
+      ...
+    1..2
+ok 5 - 5. 대시보드 API 테스트
+  ---
+  duration_ms: 4786.2273
+  type: 'suite'
+  ...
+# Subtest: 7. 헬스체크 API 테스트
+    # Subtest: TC-HC01 & TC-HC02 서버 및 DB 정상 상태 및 인증 불필요 확인
+    ok 1 - TC-HC01 & TC-HC02 서버 및 DB 정상 상태 및 인증 불필요 확인
+      ---
+      duration_ms: 28.8352
+      type: 'test'
+      ...
+    1..1
+ok 6 - 7. 헬스체크 API 테스트
+  ---
+  duration_ms: 29.61
+  type: 'suite'
+  ...
+# Subtest: 8-1. HMAC 서명 및 Haversine 거리 계산 단위 테스트
+    # Subtest: HMAC 서명 검증
+        # Subtest: TC-HM01 서명 메시지 구성 정확성
+        ok 1 - TC-HM01 서명 메시지 구성 정확성
+          ---
+          duration_ms: 1.0046
+          type: 'test'
+          ...
+        # Subtest: TC-HM02 verify — 정상 케이스
+        ok 2 - TC-HM02 verify — 정상 케이스
+          ---
+          duration_ms: 0.1938
+          type: 'test'
+          ...
+        # Subtest: TC-HM03 verify — 서명 1자 변경
+        ok 3 - TC-HM03 verify — 서명 1자 변경
+          ---
+          duration_ms: 0.2246
+          type: 'test'
+          ...
+        # Subtest: TC-HM04 verify — 빈 서명
+        ok 4 - TC-HM04 verify — 빈 서명
+          ---
+          duration_ms: 0.1633
+          type: 'test'
+          ...
+        1..4
+    ok 1 - HMAC 서명 검증
+      ---
+      duration_ms: 2.1329
+      type: 'suite'
+      ...
+    # Subtest: Haversine 거리 계산
+        # Subtest: TC-HM05 Haversine 거리 계산 정확성
+        ok 1 - TC-HM05 Haversine 거리 계산 정확성
+          ---
+          duration_ms: 0.2101
+          type: 'test'
+          ...
+        1..1
+    ok 2 - Haversine 거리 계산
+      ---
+      duration_ms: 0.2858
+      type: 'suite'
+      ...
+    1..2
+ok 7 - 8-1. HMAC 서명 및 Haversine 거리 계산 단위 테스트
+  ---
+  duration_ms: 2.8526
+  type: 'suite'
+  ...
+# Subtest: 3. 결제 API 및 비즈니스 로직 테스트
+    # Subtest: 3-1. POST /api/payments/request (상인 QR 발급)
+        # Subtest: TC-QR01 정상 QR 발급 (merchant)
+        ok 1 - TC-QR01 정상 QR 발급 (merchant)
+          ---
+          duration_ms: 369.0915
+          type: 'test'
+          ...
+        # Subtest: TC-QR02 consumer 토큰으로 QR 발급 시도
+        ok 2 - TC-QR02 consumer 토큰으로 QR 발급 시도
+          ---
+          duration_ms: 186.4912
+          type: 'test'
+          ...
+        # Subtest: TC-QR03 admin 토큰으로 QR 발급 시도
+        ok 3 - TC-QR03 admin 토큰으로 QR 발급 시도
+          ---
+          duration_ms: 182.039
+          type: 'test'
+          ...
+        # Subtest: TC-QR04 위치 정보 누락
+        ok 4 - TC-QR04 위치 정보 누락
+          ---
+          duration_ms: 182.757
+          type: 'test'
+          ...
+        # Subtest: TC-QR05 amount 0 이하
+        ok 5 - TC-QR05 amount 0 이하
+          ---
+          duration_ms: 186.7533
+          type: 'test'
+          ...
+        # Subtest: TC-QR06 amount 음수
+        ok 6 - TC-QR06 amount 음수
+          ---
+          duration_ms: 182.4974
+          type: 'test'
+          ...
+        # Subtest: TC-QR07 새 QR 발급 시 이전 QR 만료 확인
+        ok 7 - TC-QR07 새 QR 발급 시 이전 QR 만료 확인
+          ---
+          duration_ms: 590.2527
+          type: 'test'
+          ...
+        # Subtest: TC-QR08 인증 토큰 없음
+        ok 8 - TC-QR08 인증 토큰 없음
+          ---
+          duration_ms: 2.6865
+          type: 'test'
+          ...
+        1..8
+    ok 1 - 3-1. POST /api/payments/request (상인 QR 발급)
+      ---
+      duration_ms: 1883.6798
+      type: 'suite'
+      ...
+# Inserted transaction record in DB: null
+    # Subtest: 3-2. POST /api/payments/verify (소비자 결제 진행)
+        # Subtest: TC-V01 정상 결제 성공
+        ok 1 - TC-V01 정상 결제 성공
+          ---
+          duration_ms: 1287.7391
+          type: 'test'
+          ...
+        # Subtest: TC-V02 merchant 토큰으로 결제 시도
+        ok 2 - TC-V02 merchant 토큰으로 결제 시도
+          ---
+          duration_ms: 178.8196
+          type: 'test'
+          ...
+        # Subtest: TC-V03 QR 서명 위변조 (INVALID_QR)
+        ok 3 - TC-V03 QR 서명 위변조 (INVALID_QR)
+          ---
+          duration_ms: 720.9866
+          type: 'test'
+          ...
+        # Subtest: TC-V04 존재하지 않는 QR ID (INVALID_QR)
+        ok 4 - TC-V04 존재하지 않는 QR ID (INVALID_QR)
+          ---
+          duration_ms: 277.7289
+          type: 'test'
+          ...
+        # Subtest: TC-V05 qr_payload 형식 오류 (콜론 없음)
+        ok 5 - TC-V05 qr_payload 형식 오류 (콜론 없음)
+          ---
+          duration_ms: 185.5002
+          type: 'test'
+          ...
+        # Subtest: TC-V06 이미 사용된 QR 재사용 (REPLAY_QR)
+        ok 6 - TC-V06 이미 사용된 QR 재사용 (REPLAY_QR)
+          ---
+          duration_ms: 362.5263
+          type: 'test'
+          ...
+        # Subtest: TC-V07 만료된 QR 사용 (INVALID_QR)
+        ok 7 - TC-V07 만료된 QR 사용 (INVALID_QR)
+          ---
+          duration_ms: 270.1364
+          type: 'test'
+          ...
+        # Subtest: TC-V08 위치 불일치 — 100m 초과 (LOCATION_MISMATCH)
+        ok 8 - TC-V08 위치 불일치 — 100m 초과 (LOCATION_MISMATCH)
+          ---
+          duration_ms: 739.2723
+          type: 'test'
+          ...
+        # Subtest: TC-V09 위치 불일치 경계값 — 정확히 100m
+        ok 9 - TC-V09 위치 불일치 경계값 — 정확히 100m
+          ---
+          duration_ms: 1197.4047
+          type: 'test'
+          ...
+        # Subtest: TC-V10 잔액 부족 (INSUFFICIENT_BALANCE)
+        ok 10 - TC-V10 잔액 부족 (INSUFFICIENT_BALANCE)
+          ---
+          duration_ms: 744.4523
+          type: 'test'
+          ...
+        # Subtest: TC-V11 위치 정보 누락
+        ok 11 - TC-V11 위치 정보 누락
+          ---
+          duration_ms: 187.5852
+          type: 'test'
+          ...
+        # Subtest: TC-V12 amount 누락
+        ok 12 - TC-V12 amount 누락
+          ---
+          duration_ms: 180.4435
+          type: 'test'
+          ...
+        # Subtest: TC-V13 차단된 소비자의 결제 시도
+        ok 13 - TC-V13 차단된 소비자의 결제 시도
+          ---
+          duration_ms: 916.263
+          type: 'test'
+          ...
+        # Subtest: TC-V14 인증 토큰 없음
+        ok 14 - TC-V14 인증 토큰 없음
+          ---
+          duration_ms: 3.0192
+          type: 'test'
+          ...
+        1..14
+    ok 2 - 3-2. POST /api/payments/verify (소비자 결제 진행)
+      ---
+      duration_ms: 7252.8253
+      type: 'suite'
+      ...
+# Consumer transaction history length: 0
+    # Subtest: 3-3. GET /api/payments/history (거래 내역 조회)
+        # Subtest: TC-H01 consumer의 거래 내역 조회
+        ok 1 - TC-H01 consumer의 거래 내역 조회
+          ---
+          duration_ms: 276.5252
+          type: 'test'
+          ...
+        # Subtest: TC-H02 merchant의 거래 내역 조회
+        ok 2 - TC-H02 merchant의 거래 내역 조회
+          ---
+          duration_ms: 272.5975
+          type: 'test'
+          ...
+        # Subtest: TC-H03 거래 없는 신규 user
+        ok 3 - TC-H03 거래 없는 신규 user
+          ---
+          duration_ms: 1001.2396
+          type: 'test'
+          ...
+        # Subtest: TC-H04 인증 없이 접근
+        ok 4 - TC-H04 인증 없이 접근
+          ---
+          duration_ms: 2.7962
+          type: 'test'
+          ...
+        1..4
+    ok 3 - 3-3. GET /api/payments/history (거래 내역 조회)
+      ---
+      duration_ms: 1553.448
+      type: 'suite'
+      ...
+    1..3
+ok 8 - 3. 결제 API 및 비즈니스 로직 테스트
+  ---
+  duration_ms: 13468.8603
+  type: 'suite'
+  ...
+# Subtest: 4. 보안 이벤트 및 AI 분석 API 테스트
+    # Subtest: 4-1. GET /api/security/events (admin only)
+        # Subtest: TC-E01 admin이 이벤트 목록 조회
+        ok 1 - TC-E01 admin이 이벤트 목록 조회
+          ---
+          duration_ms: 277.6132
+          type: 'test'
+          ...
+        # Subtest: TC-E02 limit 파라미터
+        ok 2 - TC-E02 limit 파라미터
+          ---
+          duration_ms: 268.5046
+          type: 'test'
+          ...
+        # Subtest: TC-E03 cursor 페이지네이션
+        ok 3 - TC-E03 cursor 페이지네이션
+          ---
+          duration_ms: 731.5899
+          type: 'test'
+          ...
+        # Subtest: TC-E04 consumer 토큰으로 접근
+        ok 4 - TC-E04 consumer 토큰으로 접근
+          ---
+          duration_ms: 180.3262
+          type: 'test'
+          ...
+        # Subtest: TC-E05 인증 없이 접근
+        ok 5 - TC-E05 인증 없이 접근
+          ---
+          duration_ms: 2.2172
+          type: 'test'
+          ...
+        1..5
+    ok 1 - 4-1. GET /api/security/events (admin only)
+      ---
+      duration_ms: 1460.9484
+      type: 'suite'
+      ...
+    # Subtest: 4-2. GET /api/security/stream (admin only, SSE)
+        # Subtest: TC-S01 & TC-S02 SSE 연결 성립 및 실시간 이벤트 수신 확인
+        ok 1 - TC-S01 & TC-S02 SSE 연결 성립 및 실시간 이벤트 수신 확인
+          ---
+          duration_ms: 2359.8166
+          type: 'test'
+          ...
+        # Subtest: TC-S03 consumer 토큰으로 접근
+        ok 2 - TC-S03 consumer 토큰으로 접근
+          ---
+          duration_ms: 191.1212
+          type: 'test'
+          ...
+        1..2
+    ok 2 - 4-2. GET /api/security/stream (admin only, SSE)
+      ---
+      duration_ms: 2551.3234
+      type: 'suite'
+      ...
+# Live server has DISABLE_AI=false, returned 200 OK gracefully.
+    # Subtest: 4-3. POST /api/security/ai-analyze (admin only)
+        # Subtest: TC-A01 DISABLE_AI=true 시 graceful 응답
+        ok 1 - TC-A01 DISABLE_AI=true 시 graceful 응답
+          ---
+          duration_ms: 273.6334
+          type: 'test'
+          ...
+        # Subtest: TC-A02 consumer 토큰으로 접근
+        ok 2 - TC-A02 consumer 토큰으로 접근
+          ---
+          duration_ms: 183.1787
+          type: 'test'
+          ...
+        # Subtest: TC-A03 인증 없이 접근
+        ok 3 - TC-A03 인증 없이 접근
+          ---
+          duration_ms: 2.039
+          type: 'test'
+          ...
+        1..3
+    ok 3 - 4-3. POST /api/security/ai-analyze (admin only)
+      ---
+      duration_ms: 459.3422
+      type: 'suite'
+      ...
+    1..3
+ok 9 - 4. 보안 이벤트 및 AI 분석 API 테스트
+  ---
+  duration_ms: 6626.5201
+  type: 'suite'
+  ...
+1..1
+# Error: Test "TC-S01 & TC-S02 SSE 연결 성립 및 실시간 이벤트 수신 확인" at tests\\backend\\security.test.js:117:5 generated asynchronous activity after the test ended. This activity created the error "Error: aborted" and would have caused the test to fail, but instead triggered an uncaughtException event.
+# Subtest: tests\\backend\\security.test.js
+not ok 7 - tests\\backend\\security.test.js
+  ---
+  duration_ms: 11833.1993
+  type: 'test'
+  location: 'C:\\Users\\user\\Desktop\\grip\\GRIP\\tests\\backend\\security.test.js:1:1'
+  failureType: 'testCodeFailure'
+  exitCode: 1
+  signal: ~
+  error: 'test failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..10
+# tests 87
+# suites 21
+# pass 86
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13746.2578

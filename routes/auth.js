@@ -6,7 +6,7 @@ const authMiddle  = require('../middleware/auth.middleware');
 const { register, login, logout } = require('../controllers/auth.controller');
 
 router.post('/register', register);
-router.post('/login', rateLimit, sqliDetect, login);
+router.post('/login', sqliDetect, rateLimit, login);
 router.post('/logout', authMiddle, logout);
 
 module.exports = router;
