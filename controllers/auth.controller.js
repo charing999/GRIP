@@ -124,6 +124,13 @@ async function login(req, res) {
     await supabaseAdmin.from('users').update(updates).eq('id', user.id);
 
     if (updates.locked_until) {
+      supabaseAdmin.from('security_events').insert({
+        event_type: 'BRUTE_FORCE',
+        ip: req.ip || null,
+        user_id: user.id,
+        detail: { message: '로그인 5회 실패로 계정 잠금', locked_until: updates.locked_until },
+      }).then(() => {});
+
       return res.status(403).json({
         success: false,
         error: {

@@ -9,7 +9,7 @@ function getCurrentPosition() {
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       (err) => reject(err),
-      { timeout: 10000 }
+      { timeout: 10000, enableHighAccuracy: true, maximumAge: 0 }
     );
   });
 }
@@ -50,21 +50,27 @@ let merchantLat = null;
 let merchantLng = null;
 
 async function requestMerchantLocation() {
-  const statusEl = document.getElementById('locationStatus');
-  const btn      = document.getElementById('qrGenerateBtn');
+  const statusEl  = document.getElementById('locationStatus');
+  const qrBtn     = document.getElementById('qrGenerateBtn');
+  const retryBtn  = document.getElementById('locationRetryBtn');
 
   setLocationStatus(statusEl, 'pending', '위치 정보를 가져오는 중...');
-  btn.disabled = true;
+  qrBtn.disabled = true;
+  if (retryBtn) retryBtn.style.display = 'none';
 
   try {
     const { lat, lng } = await getCurrentPosition();
     merchantLat = lat;
     merchantLng = lng;
     setLocationStatus(statusEl, 'granted', '위치 정보 허용됨');
-    btn.disabled = false;
+    qrBtn.disabled = false;
   } catch {
     setLocationStatus(statusEl, 'denied', '위치 정보 거부됨 — QR 발급을 사용하려면 위치 권한을 허용하세요.');
-    btn.disabled = true;
+    qrBtn.disabled = true;
+    if (retryBtn) {
+      retryBtn.style.display = '';
+      retryBtn.onclick = () => requestMerchantLocation();
+    }
   }
 }
 
@@ -179,20 +185,26 @@ let consumerLng = null;
 
 async function requestConsumerLocation() {
   const statusEl = document.getElementById('locationStatus');
-  const btn      = document.getElementById('payBtn');
+  const payBtn   = document.getElementById('payBtn');
+  const retryBtn = document.getElementById('locationRetryBtn');
 
   setLocationStatus(statusEl, 'pending', '위치 정보를 가져오는 중...');
-  btn.disabled = true;
+  payBtn.disabled = true;
+  if (retryBtn) retryBtn.style.display = 'none';
 
   try {
     const { lat, lng } = await getCurrentPosition();
     consumerLat = lat;
     consumerLng = lng;
     setLocationStatus(statusEl, 'granted', '위치 정보 허용됨');
-    btn.disabled = false;
+    payBtn.disabled = false;
   } catch {
     setLocationStatus(statusEl, 'denied', '위치 정보 거부됨 — 결제를 진행하려면 위치 권한을 허용하세요.');
-    btn.disabled = true;
+    payBtn.disabled = true;
+    if (retryBtn) {
+      retryBtn.style.display = '';
+      retryBtn.onclick = () => requestConsumerLocation();
+    }
   }
 }
 
