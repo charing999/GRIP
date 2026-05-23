@@ -1,0 +1,24 @@
+{
+  "name": "grip",
+  "version": "1.0.0",
+  "description": "전통시장 QR 결제 보안 시스템",
+  "main": "index.js",
+  "scripts": {
+    "dev": "nodemon index.js",
+    "start": "node index.js",
+    "test": "node --test tests/schema/schema.test.js tests/backend/auth.test.js tests/backend/payments.test.js tests/backend/security.test.js tests/frontend/api.test.js",
+    "test:schema": "node --test tests/schema/schema.test.js",
+    "test:backend": "node --test tests/backend/auth.test.js tests/backend/payments.test.js tests/backend/security.test.js",
+    "test:frontend": "node --test tests/frontend/api.test.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "ioredis": "^5.3.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "supertest": "^7.2.2"
+  }
+}

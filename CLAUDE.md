@@ -307,11 +307,6 @@ GRIP/
 │   │   └── dashboard.js
 │   ├── index.html                # 소비자/상인 결제 화면
 │   └── dashboard.html            # 관리자 대시보드
-├── supabase/migrations/
-│   ├── 001_create_users.sql
-│   ├── 002_create_payment_requests.sql
-│   ├── 003_create_transactions.sql
-│   └── 004_create_security_events.sql
 ├── tests/
 │   ├── schema/schema.test.js
 │   ├── backend/
@@ -350,6 +345,7 @@ Base path: `/api`
 인증: `Authorization: Bearer <JWT>` 헤더
 
 응답 포맷:
+
 ```json
 // 성공
 { "success": true, "data": { ... } }
@@ -360,16 +356,17 @@ Base path: `/api`
 HTTP 상태코드: 200 / 201 / 400 / 401 / 403 / 404 / 429 / 500
 
 에러 코드:
-- INVALID_CREDENTIALS  — 이메일/비밀번호 불일치
-- ACCOUNT_LOCKED       — 계정 잠금 (detail: unlock_at)
-- SQLI_DETECTED        — SQL Injection 탐지
-- RATE_LIMITED         — IP rate limit 초과
-- INVALID_QR           — QR 서명 불일치 또는 만료
-- REPLAY_QR            — 이미 사용된 QR
+
+- INVALID_CREDENTIALS — 이메일/비밀번호 불일치
+- ACCOUNT_LOCKED — 계정 잠금 (detail: unlock_at)
+- SQLI_DETECTED — SQL Injection 탐지
+- RATE_LIMITED — IP rate limit 초과
+- INVALID_QR — QR 서명 불일치 또는 만료
+- REPLAY_QR — 이미 사용된 QR
 - INSUFFICIENT_BALANCE — 잔액 부족
-- CHAIN_INVALID        — 해시 체인 불일치
-- UNAUTHORIZED         — 인증 토큰 없음/무효
-- FORBIDDEN            — 역할 권한 없음
+- CHAIN_INVALID — 해시 체인 불일치
+- UNAUTHORIZED — 인증 토큰 없음/무효
+- FORBIDDEN — 역할 권한 없음
 
 ---
 
